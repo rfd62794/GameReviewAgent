@@ -124,12 +124,13 @@ def judge_relevance(segment_text: str, candidate: dict, transcript: str, keyword
 
     client = get_llm_client()
     try:
-        response_text = client.generate(
+        response_dict = client.generate(
             system_prompt="You evaluate YouTube transcript excerpts against a strict JSON schema.",
-            user_prompt=formatted,
+            prompt=formatted,
             model="deepseek/deepseek-chat",
             temperature=0.0
         )
+        response_text = response_dict.get("text", "")
         
         # Strip code fences if present
         cleaned = re.sub(r'```json|```', '', response_text).strip()
