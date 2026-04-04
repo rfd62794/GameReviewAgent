@@ -1,0 +1,42 @@
+{
+  "title": "Idle Clicker Prestige Loops — Why Resetting Everything Feels Like Winning",
+  "domain": "game_mechanics",
+  "angle": "The psychology and game design behind prestige mechanics in idle/clicker games — why voluntary reset is the most compelling progression system ever designed",
+  "notes": "Focus on the paradox: players voluntarily destroy progress and feel rewarded. Cover the dopamine loop of exponential growth hitting a wall, the prestige reset as a 'new game plus' with meta-currency, and how games like Cookie Clicker and Adventure Capitalist use layered prestige to create infinite retention. Touch on sunk cost inversion — the moment when loss becomes investment.",
+  "sources": [
+    {
+      "source_type": "blog",
+      "title": "The Math Behind Idle Games",
+      "url": "https://blog.kongregate.com/the-math-of-idle-games-part-i/",
+      "summary": "Kongregate engineering breakdown of exponential growth curves, diminishing returns, and how prestige multipliers create a second-order growth system that resets the dopamine curve without losing the meta-progression feeling."
+    },
+    {
+      "source_type": "gdc",
+      "title": "Idle Games: The Mechanics and Monetization of Self-Playing Games",
+      "url": "https://www.gdcvault.com/play/idle-games",
+      "summary": "GDC talk covering core loop design in idle/clicker games. Key insight: prestige is not a reset — it is a promotion. Players trade linear progress for exponential potential, which is psychologically identical to a career advancement."
+    },
+    {
+      "source_type": "reddit",
+      "title": "r/incremental_games — Why prestige systems work",
+      "url": "https://www.reddit.com/r/incremental_games/comments/prestige_discussion/",
+      "summary": "Community discussion on the emotional arc of prestige: frustration at the wall, temptation of the reset button, anxiety during the reset, euphoria at the accelerated restart. Multiple players describe prestige as 'the moment the game actually begins.'"
+    },
+    {
+      "source_type": "wiki",
+      "title": "Cookie Clicker Wiki — Ascension Mechanics",
+      "url": "https://cookieclicker.fandom.com/wiki/Ascension",
+      "summary": "Detailed breakdown of Cookie Clicker's heavenly chips system and ascension upgrade tree. Documents how each prestige layer adds a new decision space, turning a simple clicker into a strategic resource allocation game."
+    },
+    {
+      "source_type": "interview",
+      "title": "Orteil on Designing Cookie Clicker's Ascension",
+      "summary": "Developer interview where Orteil describes the ascension system as a solution to the 'big number fatigue' problem — players stop feeling progress when numbers get too large, so resetting with a multiplier makes small numbers exciting again."
+    },
+    {
+      "source_type": "paper",
+      "title": "The Psychology of Sunk Costs in Game Design",
+      "summary": "Academic paper examining how prestige mechanics invert the sunk cost fallacy: instead of players feeling trapped by investment, the prestige reset reframes all prior progress as an investment in future power, converting loss aversion into anticipation."
+    }
+  ]
+}
