@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from core.db import get_connection
 from core.segmentation import segment_script
 
-SCRIPT_ID = 2
+SCRIPT_ID = 1
 
 def main():
     print("=" * 70)

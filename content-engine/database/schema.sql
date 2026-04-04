@@ -40,7 +40,6 @@ CREATE TABLE IF NOT EXISTS scripts (
     mid_form_body           TEXT    NOT NULL,
     word_count_hook         INTEGER NOT NULL,
     word_count_body         INTEGER NOT NULL,
-    word_count_body         INTEGER NOT NULL,
     estimated_duration_s    INTEGER NOT NULL,
     title_suggestion        TEXT,
     tags                    TEXT,
