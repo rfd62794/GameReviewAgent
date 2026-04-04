@@ -101,7 +101,8 @@ def main():
             if validation_errors:
                 for err in validation_errors:
                     warnings.append(f"Attempt {attempt}: {err}")
-                print(f"       ⚠ Validation failed ({len(validation_errors)} errors), retrying...")
+                    print(f"       ⚠ {err}", flush=True)
+                print(f"       Retrying...", flush=True)
                 script_data = None
                 continue
 
