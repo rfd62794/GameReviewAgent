@@ -9,10 +9,11 @@
 models:
   p3_scripting: "anthropic/claude-sonnet-4-6"
   p1_research: "deepseek/deepseek-chat"          # DeepSeek V3 via OpenRouter — Phase 2+
+  fallback: "anthropic/claude-haiku-4-5-20251001"
 
 # Routing mode per stage
 # direct  = call provider SDK with API key from env
 # openrouter = route through OpenRouter API
 routing:
-  p3_scripting: direct        # Anthropic SDK — ANTHROPIC_API_KEY
-  p1_research: openrouter     # OpenRouter — OPENROUTER_API_KEY (Phase 2)
+  p3_scripting: openrouter     # OpenRouter — OPENROUTER_API_KEY
+  p1_research: openrouter      # OpenRouter — OPENROUTER_API_KEY (Phase 2)
