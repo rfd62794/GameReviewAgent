@@ -53,7 +53,7 @@ def search(query: str, n: int = 5) -> list[dict]:
                 "title": data.get("title"),
                 "channel": data.get("uploader"),
                 "duration": data.get("duration"),
-                "url": data.get("url")
+                "url": data.get("webpage_url") or data.get("url")
             })
         return candidates
     except subprocess.CalledProcessError as e:
@@ -286,7 +286,11 @@ def source_for_segment(segment: dict) -> dict | None:
             
         candidates = search(query, n=5)
         for cand in candidates:
-            transcript = fetch_transcript(cand.get("url", ""))
+            url = cand.get("url")
+            if not url:
+                continue
+                
+            transcript = fetch_transcript(url)
             if not transcript:
                 continue
                 
