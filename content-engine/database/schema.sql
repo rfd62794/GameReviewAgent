@@ -78,3 +78,22 @@ CREATE INDEX IF NOT EXISTS idx_sources_topic      ON sources(topic_id);
 CREATE INDEX IF NOT EXISTS idx_scripts_topic      ON scripts(topic_id);
 CREATE INDEX IF NOT EXISTS idx_asset_briefs_script ON asset_briefs(script_id);
 CREATE INDEX IF NOT EXISTS idx_render_jobs_script  ON render_jobs(script_id);
+
+-- game_clip_index table
+CREATE TABLE game_clip_index (
+    id INTEGER PRIMARY KEY,
+    game_title TEXT NOT NULL,
+    mechanic TEXT NOT NULL,
+    search_query TEXT NOT NULL,
+    channel TEXT NULL,
+    times_successful INTEGER DEFAULT 0,
+    times_attempted INTEGER DEFAULT 0,
+    confidence_avg REAL DEFAULT 0.0,
+    verified INTEGER DEFAULT 0,
+    suggested_by TEXT DEFAULT 'llm',
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    last_used_at TEXT NULL
+);
+
+CREATE INDEX idx_game_mechanic 
+ON game_clip_index(game_title, mechanic);
