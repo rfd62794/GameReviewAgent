@@ -1,6 +1,7 @@
 import subprocess
 import json
 import logging
+import re
 from pathlib import Path
 
 from core.llm_client import get_llm_client
@@ -74,7 +75,35 @@ def fetch_transcript(url: str, timeout: int = 15) -> str | None:
         return None
 
 
-def judge_relevance(segment_text: str, candidate: dict, transcript: str) -> dict:
+def find_transcript_window(transcript: str, keywords: list[str], window_chars: int = 2000) -> str:
+    """Find the transcript segment centered around keyword occurrences."""
+    lines = transcript.split('\n')
+    best_idx = -1
+    
+    # Simple linear search for first line matching any keyword
+    # Optimization: count keyword hits per line or find first hit
+    for i, line in enumerate(lines):
+        line_lower = line.lower()
+        if any(kw.lower() in line_lower for kw in keywords if len(kw) > 3):
+            best_idx = i
+            break
+            
+    if best_idx == -1:
+        return transcript[:window_chars]
+        
+    # Rebuild around the best line, trying to balance context
+    excerpt = ""
+    # Start capturing backwards from best index
+    start_idx = max(0, best_idx - 10) # rough estimate, 10 lines before
+    end_idx = min(len(lines), best_idx + 20) # 20 lines after
+    
+    excerpt = "\n".join(lines[start_idx:end_idx])
+    
+    # Fallback trim to window_chars
+    return excerpt[:window_chars]
+
+
+def judge_relevance(segment_text: str, candidate: dict, transcript: str, keywords: list[str]) -> dict:
     """Ask LLM to judge sequence relevance based on transcript."""
     # Load prompt contract
     prompt_path = Path(__file__).resolve().parent.parent / "prompts" / "clip_relevance.md"
@@ -85,12 +114,14 @@ def judge_relevance(segment_text: str, candidate: dict, transcript: str) -> dict
         logger.error("Clip relevance prompt contract not found.")
         return {"relevant": False, "confidence": 0.0}
 
+    excerpt = find_transcript_window(transcript, keywords)
+
     # Format prompt
     formatted = sys_prompt.format(
         segment_text=segment_text,
         video_title=candidate.get("title", ""),
         channel=candidate.get("channel", ""),
-        transcript_excerpt=transcript[:3000] # Provide excerpt
+        transcript_excerpt=excerpt
     )
 
     client = get_llm_client()
@@ -101,10 +132,16 @@ def judge_relevance(segment_text: str, candidate: dict, transcript: str) -> dict
             model="deepseek/deepseek-chat",
             temperature=0.0
         )
-        # Assuming we can parse JSON straight from Haiku
-        # Simple extraction
-        json_str = response_text[response_text.find("{"):response_text.rfind("}")+1]
-        return json.loads(json_str)
+        
+        # Strip code fences if present
+        cleaned = re.sub(r'```json|```', '', response_text).strip()
+        # Find outermost JSON object
+        # Note: robust match for JSON object structure, avoiding generic text
+        match = re.search(r'\{.*\}', cleaned, re.DOTALL)
+        if not match:
+            logger.error("No JSON object found in LLM response")
+            return {"relevant": False, "confidence": 0.0}
+        return json.loads(match.group())
     except Exception as e:
         logger.error(f"LLM judgment failed: {e}")
         return {"relevant": False, "confidence": 0.0}
@@ -149,7 +186,8 @@ def source_for_segment(segment: dict) -> dict | None:
         if not transcript:
             continue
             
-        judgment = judge_relevance(segment.get("segment_text", ""), cand, transcript)
+        keywords = query.split()
+        judgment = judge_relevance(segment.get("segment_text", ""), cand, transcript, keywords)
         conf = judgment.get("confidence", 0.0)
         
         if conf >= 0.8:
