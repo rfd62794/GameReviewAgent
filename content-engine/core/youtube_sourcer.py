@@ -51,6 +51,11 @@ def vtt_to_text(vtt_path: Path) -> List[Dict]:
     try:
         with open(vtt_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
+            
+        print("\n--- RAW VTT HEAD (20 lines) ---")
+        for debug_line in lines[:20]:
+            print(debug_line.strip())
+        print("-------------------------------\n")
         
         current_time = 0
         for line in lines:
