@@ -4,7 +4,7 @@ import logging
 import re
 from pathlib import Path
 
-from core.llm_client import get_llm_client
+from core.llm_client import create_llm_client as get_llm_client
 
 logger = logging.getLogger(__name__)
 
