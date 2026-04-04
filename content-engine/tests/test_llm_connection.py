@@ -186,6 +186,25 @@ class TestUsageKeyBrittleness:
         adapter._validate_response(response)  # No exception = pass
 
 
+class TestDotenvLoading:
+    """Verify python-dotenv loads .env into environment."""
+
+    def test_dotenv_loads_api_key(self):
+        """After load_dotenv(), OPENROUTER_API_KEY must not be None."""
+        env_path = _PROJECT_ROOT / ".env"
+        if not env_path.exists():
+            pytest.skip(".env file not found — CI-safe skip, not a failure")
+
+        from dotenv import load_dotenv
+        load_dotenv(env_path)
+
+        key = os.environ.get("OPENROUTER_API_KEY")
+        assert key is not None, (
+            "OPENROUTER_API_KEY is None after load_dotenv(). "
+            "Check .env file contains OPENROUTER_API_KEY=<value>"
+        )
+
+
 # =============================================================================
 # TIER 2: Live connection tests (skipped without API key)
 # =============================================================================
