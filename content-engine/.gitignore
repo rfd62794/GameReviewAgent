@@ -40,6 +40,7 @@ output/
 
 # Logs
 logs/
+*.log
 
 # Temp
 temp/
