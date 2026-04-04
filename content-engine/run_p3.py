@@ -139,8 +139,8 @@ def main():
         INSERT INTO scripts 
             (topic_id, version, hook_short_script, mid_form_body,
              word_count_hook, word_count_body, estimated_duration_s,
-             approved, created_at)
-        VALUES (?, 1, ?, ?, ?, ?, ?, 0, ?)
+             title_suggestion, tags, approved, created_at)
+        VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, 0, ?)
         """,
         (
             topic_id,
@@ -149,6 +149,8 @@ def main():
             hook_wc,
             body_wc,
             est_duration,
+            script_data.get("title_suggestion", ""),
+            json.dumps(script_data.get("tags", [])),
             now,
         ),
     )
