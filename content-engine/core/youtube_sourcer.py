@@ -2,7 +2,9 @@ import subprocess
 import json
 import logging
 import re
+import tempfile
 from pathlib import Path
+from typing import List, Dict
 
 from core.llm_client import create_llm_client as get_llm_client
 
@@ -43,67 +45,99 @@ def search(query: str, n: int = 5) -> list[dict]:
         return []
 
 
-def fetch_transcript(url: str, timeout: int = 15) -> str | None:
-    """Fetch auto-generated captions/subtitles."""
-    # Try fetching auto-subs first, then manual subs
-    cmd = [
-        "yt-dlp",
-        "--write-auto-subs",
-        "--write-subs",
-        "--sub-langs", "en",
-        "--skip-download",
-        "--dump-json",
-        url
-    ]
+def vtt_to_text(vtt_path: Path) -> List[Dict]:
+    """Parse VTT to plain text with timestamps."""
+    transcript = []
     try:
-        # Currently, the easiest way to extract raw transcript text via yt-dlp without downloading external tools
-        # For simplicity in this spec, we will run the command with a timeout.
-        # Returning a stub for the test to ensure tests pass while allowing the rest of the flow to function.
-        # A real implementation would parse the downloaded VTT/SRT file.
-        res = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-        if res.returncode == 0:
-            data = json.loads(res.stdout.strip())
-            # We would extract the VTT payload here.
-            # STUBBED transcript excerpt for logic validation:
-            return "[00:00] hey guys today we're playing [00:10] cookie clicker ascension prestige mechanics are great [00:20] watch me hit the button"
-        return None
-    except subprocess.TimeoutExpired:
-        logger.warning(f"Transcript fetch timed out for {url}")
-        return None
+        with open(vtt_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        
+        current_time = 0
+        for line in lines:
+            line = line.strip()
+            if not line or line == "WEBVTT" or "Kind:" in line or "Language:" in line:
+                continue
+            
+            # Match timestamp line (e.g. 00:00:00.000 --> 00:00:02.000 or 00:00.000)
+            if "-->" in line:
+                start_str = line.split("-->")[0].strip()
+                parts = start_str.split(":")
+                try:
+                    if len(parts) == 3:
+                        h, m, s = int(parts[0]), int(parts[1]), float(parts[2])
+                        current_time = int(h * 3600 + m * 60 + s)
+                    elif len(parts) == 2:
+                        m, s = int(parts[0]), float(parts[1])
+                        current_time = int(m * 60 + s)
+                except ValueError:
+                    pass
+                continue
+                
+            text = re.sub(r'<[^>]+>', '', line).strip()
+            if text and not text.isdigit():
+                if transcript and transcript[-1]["text"] == text:
+                    continue
+                transcript.append({"timestamp_s": current_time, "text": text})
+                
+        return transcript
     except Exception as e:
-        logger.error(f"Transcript fetch error: {e}")
-        return None
+        logger.error(f"Failed to parse VTT: {e}")
+        return []
 
 
-def find_transcript_window(transcript: str, keywords: list[str], window_chars: int = 2000) -> str:
-    """Find the transcript segment centered around keyword occurrences."""
-    lines = transcript.split('\n')
+def fetch_transcript(url: str, timeout: int = 15) -> List[Dict] | None:
+    """Fetch auto-generated captions/subtitles via VTT."""
+    with tempfile.TemporaryDirectory() as tempdir:
+        temp_path = Path(tempdir)
+        cmd = [
+            "yt-dlp",
+            "--write-auto-subs",
+            "--sub-langs", "en",
+            "--skip-download",
+            "-o", f"{temp_path}/%(id)s",
+            url
+        ]
+        try:
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+            if res.returncode == 0:
+                vtt_files = list(temp_path.glob("*.vtt"))
+                if vtt_files:
+                    return vtt_to_text(vtt_files[0])
+            else:
+                logger.warning(f"Failed to fetch transcript: {res.stderr[:200]}")
+            return None
+        except subprocess.TimeoutExpired:
+            logger.warning(f"Transcript fetch timed out for {url}")
+            return None
+        except Exception as e:
+            logger.error(f"Transcript fetch error: {e}")
+            return None
+
+
+def find_transcript_window(transcript: List[Dict], keywords: list[str]) -> str:
+    """Find the transcript segment centered around keyword occurrences returning formatted string."""
     best_idx = -1
     
-    # Simple linear search for first line matching any keyword
-    # Optimization: count keyword hits per line or find first hit
-    for i, line in enumerate(lines):
-        line_lower = line.lower()
-        if any(kw.lower() in line_lower for kw in keywords if len(kw) > 3):
+    for i, entry in enumerate(transcript):
+        text_lower = entry["text"].lower()
+        if any(kw.lower() in text_lower for kw in keywords if len(kw) > 3):
             best_idx = i
             break
             
     if best_idx == -1:
-        return transcript[:window_chars]
+        best_idx = 0
         
-    # Rebuild around the best line, trying to balance context
-    excerpt = ""
-    # Start capturing backwards from best index
-    start_idx = max(0, best_idx - 10) # rough estimate, 10 lines before
-    end_idx = min(len(lines), best_idx + 20) # 20 lines after
+    start_idx = max(0, best_idx - 15)
+    end_idx = min(len(transcript), best_idx + 15)
     
-    excerpt = "\n".join(lines[start_idx:end_idx])
-    
-    # Fallback trim to window_chars
-    return excerpt[:window_chars]
+    window_lines = []
+    for entry in transcript[start_idx:end_idx]:
+        window_lines.append(f"[{entry['timestamp_s']}s] {entry['text']}")
+        
+    return "\n".join(window_lines)
 
 
-def judge_relevance(segment_text: str, candidate: dict, transcript: str, keywords: list[str]) -> dict:
+def judge_relevance(segment_text: str, candidate: dict, transcript: List[Dict], keywords: list[str]) -> dict:
     """Ask LLM to judge sequence relevance based on transcript."""
     # Load prompt contract
     prompt_path = Path(__file__).resolve().parent.parent / "prompts" / "clip_relevance.md"
@@ -160,12 +194,15 @@ def download_clip(url: str, start: int, end: int, buffer: int = 2) -> Path | Non
         url
     ]
     try:
-        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        if result.returncode != 0:
+            logger.error(f"yt-dlp download failed: {result.stderr[:500]}")
+            return None
         if out_path.exists():
             return out_path
         return None
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to download clip: {e}")
+    except subprocess.TimeoutExpired:
+        logger.error("yt-dlp download timed out")
         return None
 
 
