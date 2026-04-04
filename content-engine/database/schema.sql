@@ -49,15 +49,30 @@ CREATE TABLE IF NOT EXISTS asset_briefs (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     script_id       INTEGER NOT NULL REFERENCES scripts(id) ON DELETE CASCADE,
     segment_index   INTEGER NOT NULL,
-    brief_type      TEXT    NOT NULL CHECK (brief_type IN ('screen_recording', 'ai_image', 'stock_footage')),
-    directive       TEXT    NOT NULL,
-    game_title      TEXT,
-    duration_s      INTEGER,
-    status          TEXT    NOT NULL DEFAULT 'pending'
-                        CHECK (status IN ('pending', 'sourced', 'approved'))
+    segment_text    TEXT    NOT NULL,
+    estimated_duration_s INTEGER NOT NULL,
+    visual_type     TEXT    NOT NULL CHECK (visual_type IN ('gameplay_clip', 'stock_still', 'stock_clip', 'ai_image')),
+    search_query    TEXT    NOT NULL,
+    ai_image_prompt TEXT,
+    selected_asset  TEXT,
+    asset_source    TEXT    CHECK (asset_source IN ('pexels', 'wikimedia', 'local', 'ai_generated', NULL)),
+    status          TEXT    NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sourced', 'approved'))
+);
+
+CREATE TABLE IF NOT EXISTS render_jobs (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    script_id         INTEGER NOT NULL REFERENCES scripts(id) ON DELETE CASCADE,
+    format            TEXT    NOT NULL CHECK (format IN ('mid_form', 'short')),
+    subtitles_enabled INTEGER NOT NULL DEFAULT 0,
+    subtitle_mode     TEXT    CHECK (subtitle_mode IN ('burn', 'srt', 'both', NULL)),
+    output_path       TEXT,
+    status            TEXT    NOT NULL DEFAULT 'queued' CHECK (status IN ('queued', 'assembling', 'complete', 'failed')),
+    created_at        TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    completed_at      TEXT
 );
 
 -- Indexes for common lookups
 CREATE INDEX IF NOT EXISTS idx_sources_topic      ON sources(topic_id);
 CREATE INDEX IF NOT EXISTS idx_scripts_topic      ON scripts(topic_id);
 CREATE INDEX IF NOT EXISTS idx_asset_briefs_script ON asset_briefs(script_id);
+CREATE INDEX IF NOT EXISTS idx_render_jobs_script  ON render_jobs(script_id);

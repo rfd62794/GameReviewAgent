@@ -1,0 +1,13 @@
+# ContentEngine Global Configuration
+
+llm:
+  routing_mode: "openrouter"
+
+assembly:
+  subtitles_enabled: false
+  subtitle_mode: "burn"          # "burn", "srt", or "both"
+  transition_style: "hard"       # "hard" or "crossfade"
+  output_resolution_midform: "1920x1080"
+  output_resolution_short: "1080x1920"
+  ken_burns_intensity: "slow"    # "slow", "medium", or "fast"
+  asset_fallback_ai: true        # Use AI image generation for abstract segments if no stock found
