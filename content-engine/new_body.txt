@@ -1,0 +1,21 @@
+Idle games have a dirty secret. They're designed to break.
+
+Not crash. Not fail. Break in a specific, calculated way. Growth accelerates, then plateaus. Your cookies-per-second hits a ceiling. Upgrades cost numbers so large they stop feeling real. This is intentional. Orteil, the creator of Cookie Clicker, called it 'big number fatigue.' When a number has fifteen digits, your brain stops caring about it.
+
+So the game offers you a way out. Ascension. Prestige. Reset.
+
+Here's the paradox: you voluntarily destroy everything. And it feels like winning.
+
+The math explains part of it. Kongregate's engineering team broke down how prestige creates a second-order growth system. Your first run grows linearly. But each prestige multiplier compounds on top of previous ones. You're not restarting. You're switching from addition to multiplication. Adventure Capitalist uses this exact structure — early runs take hours, but post-prestige runs clear the same content in minutes. The acceleration is visceral. It feels like cheating. That feeling is the product.
+
+But the psychology is where it gets strange.
+
+Normal game design fights the sunk cost fallacy. Players stay in bad situations because they've already invested time. Prestige mechanics flip this completely. Every hour you spent before the reset gets reframed. It wasn't wasted. It was deposited. Your prior run is now collateral for future power. Loss aversion — one of the strongest psychological forces in human decision-making — gets converted into anticipation. That's not easy to engineer. Most systems can't do it.
+
+The GDC talk on idle game design made a sharp observation: prestige is not a reset. It's a promotion. You trade your current position for a higher ceiling. That framing matters enormously. Players who understand it press the button confidently. Players who don't understand it feel anxiety. The emotional arc is almost universal — frustration at the wall, temptation at the button, anxiety during the reset, then euphoria when the accelerated run begins. Reddit's incremental games community documents this cycle obsessively. Multiple players describe the post-prestige restart as 'the moment the game actually begins.'
+
+Cookie Clicker's heavenly chips system is the cleanest example of layered prestige. Each ascension doesn't just give you a multiplier. It unlocks a new decision space. Upgrade trees. Strategic tradeoffs. A simple clicker becomes a resource allocation puzzle. The game you're playing on run fifteen is structurally different from run one. That's retention through transformation, not just repetition.
+
+There's a design lesson buried here. Players don't quit games because they're hard. They quit because progress stops feeling meaningful. Prestige mechanics solve this by making the reset itself the milestone. The button is the reward. Pressing it is the achievement. Every future run validates the decision to press it.
+
+The best prestige systems have one thing in common. They make you want to lose. Not dread it. Want it. When your Cookie Clicker run slows down and you start eyeing that ascension button, you're not grieving your progress. You're excited about your next run. That emotional flip — from loss to launch — is the entire trick. And once a game teaches your brain to feel that way, it's almost impossible to stop playing.
