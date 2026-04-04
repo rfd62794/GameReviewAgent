@@ -52,6 +52,7 @@ def print_summary():
         print("\nFINAL VIDEO: Not found.")
 
 if __name__ == "__main__":
+    os.environ["PATH"] = str(Path().absolute()) + os.pathsep + os.environ.get("PATH", "")
     os.environ["SCRIPT_ID"] = "1"
     run_step("run_p3b.py")
     run_step("run_p4.py")

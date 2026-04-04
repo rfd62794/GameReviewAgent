@@ -34,3 +34,15 @@ Thumbs.db
 # Environment
 .env
 .env.local
+
+# Output
+output/
+
+# Logs
+logs/
+
+# Temp
+temp/
+
+# External
+ffmpeg.exe
