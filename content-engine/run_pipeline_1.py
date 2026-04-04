@@ -52,6 +52,8 @@ def print_summary():
         print("\nFINAL VIDEO: Not found.")
 
 if __name__ == "__main__":
+    os.environ["PYTHONIOENCODING"] = "utf-8"
+    os.environ["PYTHONUTF8"] = "1"
     os.environ["PATH"] = str(Path().absolute()) + os.pathsep + os.environ.get("PATH", "")
     os.environ["SCRIPT_ID"] = "1"
     run_step("run_p3b.py")
