@@ -6,7 +6,7 @@ __pycache__/
 dist/
 build/
 .eggs/
-assets/
+
 
 # Virtual environment
 venv/
@@ -20,6 +20,7 @@ database/*.db-shm
 
 # Audio artifacts
 audio/
+assets/
 
 # IDE
 .vscode/
