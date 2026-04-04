@@ -15,6 +15,10 @@ Your output MUST be strict, perfectly formatted JSON. Do not write any conversat
    - ALWAYS include the format: "{game_title} {mechanic} {moment} gameplay"
    - DO NOT include commentary, review, or generic terms unless no games are found.
    - Example targeting: `"Cookie Clicker prestige ascension gameplay"`
+5. **No-Game Fallback**: If games[] is empty, search queries MUST follow this format:
+   "{mechanic_keyword} {genre} mechanic explained gameplay"
+   Example: "prestige reset idle game mechanic gameplay"
+   Never use abstract terms alone ("game design", "psychology", "progression") as the primary query term. Always anchor to a demonstrable mechanic.
 
 ## Schema
 ```json
