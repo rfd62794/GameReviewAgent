@@ -24,7 +24,7 @@ import edge_tts
 # --- Configuration ---
 VOICE = "en-US-GuyNeural"
 OUTPUT_DIR = Path(__file__).resolve().parent / "audio"
-SCRIPT_ID = 2
+SCRIPT_ID = 1
 
 
 async def generate_audio(text: str, output_path: Path, label: str) -> dict:
