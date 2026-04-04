@@ -13,6 +13,8 @@ ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
 LOCAL_GAMEPLAY_DIR = ASSETS_DIR / "gameplay"
 DL_DIR = ASSETS_DIR / "downloads"
 
+from core.youtube_sourcer import source_for_segment as yt_source
+
 LOCAL_GAMEPLAY_DIR.mkdir(parents=True, exist_ok=True)
 DL_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -63,29 +65,7 @@ def search_wikimedia(query: str, segment_id: int) -> str | None:
     return None
 
 
-def search_pexels_video(query: str, min_duration: int, segment_id: int) -> str | None:
-    """Search Pexels for a video clip that is at least min_duration long."""
-    if not PEXELS_API_KEY:
-        return None
-        
-    url = "https://api.pexels.com/videos/search"
-    headers = {"Authorization": PEXELS_API_KEY}
-    params = {"query": query, "per_page": 15, "orientation": "landscape"}
-    try:
-        r = requests.get(url, headers=headers, params=params)
-        data = r.json()
-        for video in data.get("videos", []):
-            if video.get("duration", 0) >= min_duration:
-                # Find the HD format
-                files = video.get("video_files", [])
-                hd_files = [f for f in files if f.get("quality") == "hd" and f.get("width", 0) >= 1920]
-                if hd_files:
-                    link = hd_files[0].get("link")
-                    out_path = DL_DIR / f"pexels_vid_seg_{segment_id}.mp4"
-                    return str(download_file(link, out_path))
-    except Exception as e:
-        print(f"Pexels Video error: {e}")
-    return None
+
 
 
 def search_pexels_image(query: str, segment_id: int) -> str | None:
@@ -137,29 +117,25 @@ def source_asset_for_segment(segment: dict) -> dict:
     req_dur = segment["estimated_duration_s"]
     seg_id = segment["id"]
 
-    # 1. Gameplay Clip priority
-    if vtype == "gameplay_clip":
+    # 1. Gameplay Clip & Stock Clip priority (now both use YouTube heavily)
+    if vtype in ["gameplay_clip", "stock_clip"]:
         local = check_local_gameplay(query)
         if local: return {"path": local, "source": "local"}
+        
+        yt_res = yt_source(segment)
+        if yt_res: 
+            return {"path": yt_res["path"], "source": yt_res["source"]}
+            
         wiki = search_wikimedia(query, seg_id)
         if wiki: return {"path": wiki, "source": "wikimedia"}
-        pex = search_pexels_video(query, req_dur, seg_id)
-        if pex: return {"path": pex, "source": "pexels"}
         
-    # 2. Stock Video priority
-    if vtype == "stock_clip":
-        pex = search_pexels_video(query, req_dur, seg_id)
-        if pex: return {"path": pex, "source": "pexels"}
-        pex_img = search_pexels_image(query, seg_id)
-        if pex_img: return {"path": pex_img, "source": "pexels"}
-        
-    # 3. Stock Image priority
+    # 2. Stock Image priority
     if vtype == "stock_still":
         pex_img = search_pexels_image(query, seg_id)
         if pex_img: return {"path": pex_img, "source": "pexels"}
         
-    # 4. AI Image priority or strict fallback wrapper
-    if vtype == "ai_image" or True: # Fallback applies to everything
+    # 3. AI Image priority or strict fallback wrapper
+    if vtype == "ai_image" or True: # Fallback applies to everything if above fails
         ai = generate_pollinations_image(prompt or f"Abstract representation of {query}, high quality, clean", seg_id)
         if ai: return {"path": ai, "source": "ai_generated"}
         

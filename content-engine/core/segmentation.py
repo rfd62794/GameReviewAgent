@@ -38,6 +38,7 @@ def _assign_visual_metadata(text: str, tags: list[str]) -> dict:
         return {
             "visual_type": "gameplay_clip",
             "search_query": query,
+            "youtube_search_query": f"{query} gameplay pc",
             "ai_image_prompt": None
         }
         
@@ -46,6 +47,7 @@ def _assign_visual_metadata(text: str, tags: list[str]) -> dict:
         return {
             "visual_type": "ai_image",
             "search_query": "",
+            "youtube_search_query": "",
             "ai_image_prompt": f"Minimalist clean infographic style illustration representing {text.split('.')[0]}. Dark mode colors, premium."
         }
         
@@ -54,6 +56,7 @@ def _assign_visual_metadata(text: str, tags: list[str]) -> dict:
         return {
             "visual_type": "stock_still",
             "search_query": "technology abstract",
+            "youtube_search_query": "",
             "ai_image_prompt": None
         }
         
@@ -61,6 +64,7 @@ def _assign_visual_metadata(text: str, tags: list[str]) -> dict:
     return {
         "visual_type": "stock_clip",
         "search_query": "gaming",
+        "youtube_search_query": "video game visual essay b-roll",
         "ai_image_prompt": None
     }
 
@@ -84,6 +88,7 @@ def segment_script(script_id: int, hook_text: str, body_text: str, tags: list[st
         "estimated_duration_s": _estimate_duration(hook_text),
         "visual_type": hook_meta["visual_type"],
         "search_query": hook_meta["search_query"],
+        "youtube_search_query": hook_meta["youtube_search_query"],
         "ai_image_prompt": hook_meta["ai_image_prompt"]
     })
     
@@ -100,6 +105,7 @@ def segment_script(script_id: int, hook_text: str, body_text: str, tags: list[st
             "estimated_duration_s": _estimate_duration(paragraph),
             "visual_type": meta["visual_type"],
             "search_query": meta["search_query"],
+            "youtube_search_query": meta["youtube_search_query"],
             "ai_image_prompt": meta["ai_image_prompt"]
         })
         

@@ -11,3 +11,8 @@ assembly:
   output_resolution_short: "1080x1920"
   ken_burns_intensity: "slow"    # "slow", "medium", or "fast"
   asset_fallback_ai: true        # Use AI image generation for abstract segments if no stock found
+  youtube_clip_enabled: true
+  youtube_candidates: 5
+  youtube_confidence_threshold: 0.8
+  youtube_clip_timeout: 15
+  youtube_clip_buffer_s: 2
