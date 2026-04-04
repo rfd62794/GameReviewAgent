@@ -22,7 +22,7 @@ def main():
     print()
 
     conn = get_connection()
-    conn.row_factory = dict # Ensure we can fetch as dict easily
+    conn.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
     cursor = conn.execute(
         "SELECT * FROM asset_briefs WHERE script_id = ? AND status = 'pending' ORDER BY segment_index",
         (SCRIPT_ID,)

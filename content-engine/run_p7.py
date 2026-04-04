@@ -35,7 +35,7 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     conn = get_connection()
-    conn.row_factory = dict
+    conn.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
     cursor = conn.execute(
         "SELECT * FROM asset_briefs WHERE script_id = ? AND status = 'sourced' ORDER BY segment_index",
         (SCRIPT_ID,)
