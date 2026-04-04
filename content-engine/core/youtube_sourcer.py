@@ -116,13 +116,11 @@ def judge_relevance(segment_text: str, candidate: dict, transcript: str, keyword
 
     excerpt = find_transcript_window(transcript, keywords)
 
-    # Format prompt
-    formatted = sys_prompt.format(
-        segment_text=segment_text,
-        video_title=candidate.get("title", ""),
-        channel=candidate.get("channel", ""),
-        transcript_excerpt=excerpt
-    )
+    # Format prompt by replacing placeholders (avoids curly brace clashes with JSON schema in prompt)
+    formatted = sys_prompt.replace("{segment_text}", segment_text)
+    formatted = formatted.replace("{video_title}", candidate.get("title", ""))
+    formatted = formatted.replace("{channel}", candidate.get("channel", ""))
+    formatted = formatted.replace("{transcript_excerpt}", excerpt)
 
     client = get_llm_client()
     try:
