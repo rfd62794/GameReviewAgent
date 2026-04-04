@@ -16,3 +16,7 @@ assembly:
   youtube_confidence_threshold: 0.8
   youtube_clip_timeout: 15
   youtube_clip_buffer_s: 2
+
+ytdlp_extra_flags:
+  - "--remote-components"
+  - "ejs:github"
