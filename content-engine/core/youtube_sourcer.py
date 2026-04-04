@@ -248,12 +248,18 @@ def source_for_segment(segment: dict) -> dict | None:
     if not search_queries:
         return None
 
+    # ---- Added TRACE PRINTS ----
+    print(f"\n================ SEGMENT {segment.get('segment_index', '?')} ================")
+    words = segment_text.split()
+    print(f"TEXT: {' '.join(words[:20])}...")
+    print(f"EXTRACTOR: Game: {games} | Mechanic: {mechanic} | Moment: {extracted.get('moment')}")
+    print(f"QUERIES: {search_queries[:2]}")
+
     # We evaluate sequentially across top queries until a hit.
     best_candidate = None
     highest_conf = 0.0
     
     # Try the top query first (or could iterate safely, but let's stick to simple logic: top query gets candidates)
-    query = search_queries[0]
     
     # Limit number of queries to search to avoid exploding yt-dlp calls
     for query in search_queries[:2]:
@@ -270,6 +276,8 @@ def source_for_segment(segment: dict) -> dict | None:
             judgment = judge_relevance(segment_text, cand, transcript, keywords)
             conf = judgment.get("confidence", 0.0)
             
+            print(f"  ? CANDIDATE: '{cand.get('title')}' -> Confidence: {conf}")
+            
             # c) Record attempt
             top_game = games[0] if games else "unknown"
             record_attempt(top_game, mechanic, query, cand.get("channel"))
@@ -284,6 +292,7 @@ def source_for_segment(segment: dict) -> dict | None:
                 best_candidate["_query"] = query
 
     if best_candidate and best_candidate.get("confidence", 0.0) >= 0.8:
+        print(f"  ---> ACCEPTED: {best_candidate.get('title')} (Conf: {best_candidate.get('confidence')})")
         # d) On acceptance
         top_game = games[0] if games else "unknown"
         record_success(
@@ -309,4 +318,5 @@ def source_for_segment(segment: dict) -> dict | None:
             }
             
     # e) On all candidates rejected -> Pollinations fallback natively happens upstream if None returned
+    print(f"  ---> REJECTED ALL CANDIDATES. Falling back upstream.")
     return None
