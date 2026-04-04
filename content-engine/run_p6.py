@@ -24,7 +24,7 @@ import edge_tts
 # --- Configuration ---
 VOICE = "en-US-GuyNeural"
 OUTPUT_DIR = Path(__file__).resolve().parent / "audio"
-SCRIPT_ID = 1
+SCRIPT_ID = 2
 
 
 async def generate_audio(text: str, output_path: Path, label: str) -> dict:
@@ -39,9 +39,9 @@ async def generate_audio(text: str, output_path: Path, label: str) -> dict:
     Returns:
         Dict with file_path, file_size_bytes, and label.
     """
-    print(f"  Generating {label}...", flush=True)
+    print(f"  Generating {label} (rate=-5%)...", flush=True)
 
-    communicate = edge_tts.Communicate(text, VOICE)
+    communicate = edge_tts.Communicate(text, VOICE, rate="-5%")
     await communicate.save(str(output_path))
 
     file_size = output_path.stat().st_size
@@ -100,8 +100,8 @@ async def main():
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    hook_path = OUTPUT_DIR / "script_1_hook.mp3"
-    body_path = OUTPUT_DIR / "script_1_body.mp3"
+    hook_path = OUTPUT_DIR / f"script_{SCRIPT_ID}_hook.mp3"
+    body_path = OUTPUT_DIR / f"script_{SCRIPT_ID}_body.mp3"
 
     hook_result = await generate_audio(hook_text, hook_path, "hook_short_script")
     body_result = await generate_audio(body_text, body_path, "mid_form_body")
@@ -120,8 +120,8 @@ async def main():
     print(f"  ┌─────────────────────┬──────────────┬──────────────┐")
     print(f"  │ File                │ Size         │ Words        │")
     print(f"  ├─────────────────────┼──────────────┼──────────────┤")
-    print(f"  │ script_1_hook.mp3   │ {hook_result['file_size_bytes']:>10,} B │ {hook_wc:>12} │")
-    print(f"  │ script_1_body.mp3   │ {body_result['file_size_bytes']:>10,} B │ {body_wc:>12} │")
+    print(f"  │ script_2_hook.mp3   │ {hook_result['file_size_bytes']:>10,} B │ {hook_wc:>12} │")
+    print(f"  │ script_2_body.mp3   │ {body_result['file_size_bytes']:>10,} B │ {body_wc:>12} │")
     print(f"  └─────────────────────┴──────────────┴──────────────┘")
     print()
     print(f"  Output directory: {OUTPUT_DIR}")
