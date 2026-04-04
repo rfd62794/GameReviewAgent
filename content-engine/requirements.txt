@@ -1,0 +1,13 @@
+# ContentEngine — Python Dependencies
+# Phase 1: Reverse Pipeline MVP
+
+# Core
+pyyaml>=6.0
+requests>=2.31
+python-dotenv>=1.0
+
+# LLM
+anthropic>=0.40
+
+# Testing
+pytest>=8.0

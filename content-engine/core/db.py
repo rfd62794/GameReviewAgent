@@ -11,6 +11,13 @@ SDD Reference: Section 3.1, ADR-003
 import sqlite3
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+# Load .env at module level — db.py is the first module imported by any
+# pipeline stage, ensuring env vars are available before any os.getenv()
+# calls in downstream modules (llm_client.py, script_generator.py).
+load_dotenv()
+
 SCHEMA_VERSION = 1
 
 # Resolve paths relative to the project root (content-engine/)
