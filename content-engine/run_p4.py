@@ -47,10 +47,10 @@ def main():
                 "UPDATE asset_briefs SET selected_asset = ?, asset_source = ?, status = 'sourced' WHERE id = ?",
                 (result["path"], result["source"], seg["id"])
             )
+            conn.commit()
         else:
             print("    ✗ FAILED to source asset.")
 
-    conn.commit()
     conn.close()
 
     print()
