@@ -77,7 +77,7 @@ def main():
     warnings = []
 
     for attempt in range(1, max_attempts + 1):
-        print(f"       Attempt {attempt}/{max_attempts}...")
+        print(f"       Attempt {attempt}/{max_attempts}...", flush=True)
         try:
             result = client.generate(
                 prompt=user_prompt,
@@ -93,7 +93,8 @@ def main():
                 script_data = json.loads(raw_text)
             except json.JSONDecodeError as e:
                 warnings.append(f"Attempt {attempt}: Invalid JSON — {e}")
-                print(f"       ⚠ Invalid JSON response, retrying...")
+                print(f"  [Attempt {attempt} failed] Invalid JSON: {e}", flush=True)
+                print(f"  [Raw response excerpt] {raw_text[:500]}", flush=True)
                 continue
 
             # Validate
@@ -101,19 +102,19 @@ def main():
             if validation_errors:
                 for err in validation_errors:
                     warnings.append(f"Attempt {attempt}: {err}")
-                    print(f"       ⚠ {err}", flush=True)
-                print(f"       Retrying...", flush=True)
+                    print(f"  [Attempt {attempt} failed] {err}", flush=True)
+                print(f"  [Raw response excerpt] {raw_text[:500]}", flush=True)
                 script_data = None
                 continue
 
             # Success
             retries = attempt - 1
-            print(f"       ✓ Valid script received on attempt {attempt}")
+            print(f"       ✓ Valid script received on attempt {attempt}", flush=True)
             break
 
         except LLMError as e:
             warnings.append(f"Attempt {attempt}: LLM error — {e}")
-            print(f"       ⚠ LLM error: {e}")
+            print(f"  [Attempt {attempt} failed] LLM error: {e}", flush=True)
             continue
 
     if script_data is None:
