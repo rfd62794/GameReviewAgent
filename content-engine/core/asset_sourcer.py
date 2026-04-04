@@ -19,7 +19,7 @@ DL_DIR.mkdir(parents=True, exist_ok=True)
 
 def download_file(url: str, output_path: Path) -> Path:
     """Download a file from an active URL."""
-    r = requests.get(url, stream=True, headers={"User-Agent": USER_AGENT})
+    r = requests.get(url, stream=True, headers={"User-Agent": USER_AGENT}, timeout=15)
     r.raise_for_status()
     with open(output_path, "wb") as f:
         for chunk in r.iter_content(chunk_size=8192):
@@ -49,7 +49,7 @@ def search_wikimedia(query: str, segment_id: int) -> str | None:
         "pithumbsize": 1920
     }
     try:
-        r = requests.get(url, params=params, headers={"User-Agent": USER_AGENT})
+        r = requests.get(url, params=params, headers={"User-Agent": USER_AGENT}, timeout=15)
         data = r.json()
         pages = data.get("query", {}).get("pages", {})
         if pages:
