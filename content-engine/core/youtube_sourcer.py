@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import List, Dict
 
 from core.llm_client import create_llm_client as get_llm_client
+from core.mechanic_extractor import extract as extract_mechanic
+from core.index_manager import lookup, record_attempt, record_success
 
 logger = logging.getLogger(__name__)
 
@@ -213,33 +215,86 @@ def download_clip(url: str, start: int, end: int, buffer: int = 2) -> Path | Non
 
 def source_for_segment(segment: dict) -> dict | None:
     """Full P4 YouTube sourcing flow per SDD v0.4."""
-    query = segment.get("youtube_search_query", segment.get("search_query"))
-    if not query:
+    segment_text = segment.get("segment_text", "")
+    if not segment_text:
         return None
-        
-    candidates = search(query, n=5)
+
+    # a) Call mechanic_extractor
+    extracted = extract_mechanic(segment_text)
+    games = extracted.get("games", [])
+    mechanic = extracted.get("mechanic", "unknown")
+    
+    # Base queries from the LLM extractor
+    base_queries = extracted.get("search_queries", [])
+    if not base_queries:
+        # Fallback if extraction totally failed
+        fallback_query = segment.get("youtube_search_query", segment.get("search_query", "idle game gameplay"))
+        base_queries = [fallback_query]
+
+    # b) Index Lookup
+    search_queries = []
+    for game in games:
+        indexed_queries = lookup(game, mechanic)
+        for iq in indexed_queries:
+            if iq not in search_queries:
+                search_queries.append(iq)
+    
+    # Append the newly generated LLM base queries
+    for bq in base_queries:
+        if bq not in search_queries:
+            search_queries.append(bq)
+            
+    # Short circuit check
+    if not search_queries:
+        return None
+
+    # We evaluate sequentially across top queries until a hit.
     best_candidate = None
     highest_conf = 0.0
     
-    for cand in candidates:
-        transcript = fetch_transcript(cand.get("url", ""))
-        if not transcript:
-            continue
-            
-        keywords = query.split()
-        judgment = judge_relevance(segment.get("segment_text", ""), cand, transcript, keywords)
-        conf = judgment.get("confidence", 0.0)
-        
-        if conf >= 0.8:
-            # Threshold met, we got a winner
-            best_candidate = {**cand, **judgment}
+    # Try the top query first (or could iterate safely, but let's stick to simple logic: top query gets candidates)
+    query = search_queries[0]
+    
+    # Limit number of queries to search to avoid exploding yt-dlp calls
+    for query in search_queries[:2]:
+        if best_candidate and best_candidate.get("confidence", 0.0) >= 0.8:
             break
-        elif conf > highest_conf:
-            highest_conf = conf
-            best_candidate = {**cand, **judgment}
+            
+        candidates = search(query, n=5)
+        for cand in candidates:
+            transcript = fetch_transcript(cand.get("url", ""))
+            if not transcript:
+                continue
+                
+            keywords = query.split()
+            judgment = judge_relevance(segment_text, cand, transcript, keywords)
+            conf = judgment.get("confidence", 0.0)
+            
+            # c) Record attempt
+            top_game = games[0] if games else "unknown"
+            record_attempt(top_game, mechanic, query, cand.get("channel"))
+            
+            if conf >= 0.8:
+                best_candidate = {**cand, **judgment}
+                best_candidate["_query"] = query
+                break
+            elif conf > highest_conf:
+                highest_conf = conf
+                best_candidate = {**cand, **judgment}
+                best_candidate["_query"] = query
 
-    # If we didn't hit threshold 0.8, we reject completely (per SDD v0.4 logic)
     if best_candidate and best_candidate.get("confidence", 0.0) >= 0.8:
+        # d) On acceptance
+        top_game = games[0] if games else "unknown"
+        record_success(
+            game_title=top_game,
+            mechanic=mechanic,
+            query=best_candidate["_query"],
+            channel=best_candidate.get("channel"),
+            confidence=best_candidate.get("confidence"),
+            segment_text=segment_text
+        )
+        
         clip_path = download_clip(
             url=best_candidate.get("url"),
             start=best_candidate.get("timestamp_start", 0),
@@ -253,4 +308,5 @@ def source_for_segment(segment: dict) -> dict | None:
                 "metadata": best_candidate
             }
             
+    # e) On all candidates rejected -> Pollinations fallback natively happens upstream if None returned
     return None
