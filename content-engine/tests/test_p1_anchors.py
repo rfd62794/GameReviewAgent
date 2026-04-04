@@ -374,19 +374,19 @@ class TestTagsAndTitleValidation:
         assert any("tags" in e.lower() for e in errors)
 
     def test_tags_too_many_rejected(self, valid_script_json):
-        """More than 10 tags must fail."""
+        """More than 8 tags must fail."""
         valid_script_json["tags"] = [f"tag{i}" for i in range(15)]
         errors = validate_script_json(valid_script_json)
         assert any("tags" in e.lower() for e in errors)
 
     def test_title_too_long_rejected(self, valid_script_json):
-        """Title exceeding 80 characters must fail."""
-        valid_script_json["title_suggestion"] = "A" * 81
+        """Title exceeding 60 characters must fail."""
+        valid_script_json["title_suggestion"] = "A" * 61
         errors = validate_script_json(valid_script_json)
         assert any("title" in e.lower() for e in errors)
 
     def test_title_at_max_accepted(self, valid_script_json):
-        """Title at exactly 80 characters must pass."""
-        valid_script_json["title_suggestion"] = "A" * 80
+        """Title at exactly 60 characters must pass."""
+        valid_script_json["title_suggestion"] = "A" * 60
         errors = validate_script_json(valid_script_json)
         assert not any("title" in e.lower() for e in errors)
