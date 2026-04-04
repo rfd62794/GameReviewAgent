@@ -137,7 +137,7 @@ def judge_relevance(segment_text: str, candidate: dict, transcript: str, keyword
         cleaned = re.sub(r'```json|```', '', response_text).strip()
         # Find outermost JSON object
         # Note: robust match for JSON object structure, avoiding generic text
-        match = re.search(r'\{.*\}', cleaned, re.DOTALL)
+        match = re.search(r'\{[^{}]*\}', cleaned, re.DOTALL)
         if not match:
             logger.error("No JSON object found in LLM response")
             return {"relevant": False, "confidence": 0.0}
