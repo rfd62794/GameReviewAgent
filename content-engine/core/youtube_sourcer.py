@@ -98,7 +98,7 @@ def fetch_transcript(url: str, timeout: int = 15) -> List[Dict] | None:
         temp_path = Path(tempdir)
         cmd = [
             "yt-dlp",
-            "--js-runtimes", f"nodejs:{Path('node.exe').absolute()}",
+            "--js-runtimes", f"node:{Path('node.exe').absolute()}",
             "--write-auto-subs",
             "--sub-langs", "en",
             "--skip-download",
@@ -196,7 +196,7 @@ def download_clip(url: str, start: int, end: int, buffer: int = 2) -> Path | Non
     
     cmd = [
         "yt-dlp",
-        "--js-runtimes", f"nodejs:{Path('node.exe').absolute()}",
+        "--js-runtimes", f"node:{Path('node.exe').absolute()}",
         "--download-sections", f"*{s}-{e}",
         "-f", "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
         "-o", str(out_path),
