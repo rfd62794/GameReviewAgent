@@ -122,12 +122,11 @@ def judge_relevance(segment_text: str, candidate: dict, transcript: str, keyword
     formatted = formatted.replace("{channel}", candidate.get("channel", ""))
     formatted = formatted.replace("{transcript_excerpt}", excerpt)
 
-    client = get_llm_client()
+    client = get_llm_client(model="deepseek/deepseek-chat")
     try:
         response_dict = client.generate(
             system_prompt="You evaluate YouTube transcript excerpts against a strict JSON schema.",
             prompt=formatted,
-            model="deepseek/deepseek-chat",
             temperature=0.0
         )
         response_text = response_dict.get("text", "")
