@@ -46,11 +46,13 @@ You MUST respond with a single valid JSON object. No markdown fences. No preambl
 - **Structure:** Begin with a transitional sentence that works regardless of the hook. Then build through 2–3 analytical sections. End with a clear takeaway or reframing.
 
 #### `title_suggestion`
-- Maximum 80 characters.
-- Optimized for YouTube search and curiosity gap.
+- A YouTube title under 60 characters.
+- Curiosity-driven, no clickbait. Must stand alone without context.
+- Must NOT start with "Why" or "How" as the first word — overused format.
 
 #### `tags`
-- 5–10 relevant tags for YouTube metadata.
+- 5–8 lowercase keyword strings for YouTube metadata.
+- Single words or two-word phrases only.
 - Include game title(s), mechanic name(s), and general game design terms.
 
 ---
@@ -69,8 +71,10 @@ You MUST respond with a single valid JSON object. No markdown fences. No preambl
    - "in the intro"
    - "earlier in this video"
    - "as we said"
-6. `tags` MUST be an array of strings with length between 5 and 10.
-7. `title_suggestion` MUST be a string with length ≤ 80 characters.
+6. `tags` MUST be an array of strings with length between 5 and 8.
+7. `title_suggestion` MUST be a string with length ≤ 60 characters.
+8. `title_suggestion` MUST NOT start with "Why" or "How".
+9. `tags` entries MUST be single words or two-word phrases only (no commas, no long phrases).
 
 ---
 
@@ -104,3 +108,6 @@ Respond with valid JSON only. No markdown. No commentary.
 - ❌ Writing a monolithic script and splitting it — these are TWO INDEPENDENT writings
 - ❌ Including markdown formatting, code fences, or explanatory text outside the JSON object
 - ❌ Exceeding word count limits in either segment
+- ❌ Starting title_suggestion with "Why" or "How" — overused YouTube format
+- ❌ Using multi-word tag phrases longer than two words
+- ❌ Omitting title_suggestion or tags from the JSON response — ALL FOUR KEYS are required

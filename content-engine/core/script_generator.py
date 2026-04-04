@@ -162,8 +162,8 @@ def validate_script_json(data: dict) -> list[str]:
     title = data.get("title_suggestion")
     if not isinstance(title, str) or not title.strip():
         errors.append("title_suggestion must be a non-empty string.")
-    elif len(title) > 80:
-        errors.append(f"title_suggestion length {len(title)} exceeds 80 char limit.")
+    elif len(title) > 60:
+        errors.append(f"title_suggestion length {len(title)} exceeds 60 char limit.")
 
     # Validate tags
     tags = data.get("tags")
@@ -171,8 +171,8 @@ def validate_script_json(data: dict) -> list[str]:
         errors.append("tags must be an array.")
     elif not all(isinstance(t, str) for t in tags):
         errors.append("All tags must be strings.")
-    elif len(tags) < 5 or len(tags) > 10:
-        errors.append(f"tags count {len(tags)} outside bounds [5, 10].")
+    elif len(tags) < 5 or len(tags) > 8:
+        errors.append(f"tags count {len(tags)} outside bounds [5, 8].")
 
     return errors
 
@@ -183,17 +183,19 @@ def _build_system_prompt() -> str:
         "You are a YouTube script writer specializing in game mechanics analysis. "
         "You write engaging, research-backed scripts that explain game design concepts "
         "to an audience of curious gamers and aspiring developers.\n\n"
-        "You produce TWO strictly separated script segments as a JSON object. These "
-        "segments serve different distribution formats and MUST be fully independent "
-        "of each other.\n\n"
+        "You produce a JSON object with EXACTLY four keys. No more, no fewer.\n\n"
         "CRITICAL RULES:\n"
         "1. Respond with a SINGLE valid JSON object. No markdown fences. No preamble.\n"
         "2. hook_short_script: 90-120 words, self-contained Short. No forward references.\n"
         "3. mid_form_body: 400-650 words, body only. NEVER reference the hook.\n"
-        "4. Forbidden in mid_form_body: 'as I mentioned', 'as we discussed', "
+        "4. title_suggestion: YouTube title under 60 characters. Curiosity-driven. "
+        "Do NOT start with 'Why' or 'How'.\n"
+        "5. tags: array of 5-8 lowercase keyword strings. Single words or two-word phrases only.\n"
+        "6. Forbidden in mid_form_body: 'as I mentioned', 'as we discussed', "
         "'like I said', 'that question', 'in the intro', 'earlier in this video', "
         "'as we said'.\n"
-        "5. These are TWO INDEPENDENT writings, not a split monolith."
+        "7. These are TWO INDEPENDENT writings, not a split monolith.\n"
+        "8. ALL FOUR KEYS must be present in the JSON response."
     )
 
 
