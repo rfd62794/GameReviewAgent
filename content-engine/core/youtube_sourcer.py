@@ -98,7 +98,7 @@ def judge_relevance(segment_text: str, candidate: dict, transcript: str) -> dict
         response_text = client.generate(
             system_prompt="You evaluate YouTube transcript excerpts against a strict JSON schema.",
             user_prompt=formatted,
-            model="anthropic/claude-haiku-4-5-20251001",
+            model="deepseek/deepseek-chat",
             temperature=0.0
         )
         # Assuming we can parse JSON straight from Haiku
