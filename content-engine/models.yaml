@@ -1,0 +1,18 @@
+# ContentEngine — Model Configuration
+# SDD Reference: Section 5 (External Tooling)
+#
+# Model strings use OpenRouter provider-prefix format: provider/model-id
+# When calling a provider's SDK directly (e.g., Anthropic), the prefix is
+# stripped automatically by the loader. This keeps one canonical string
+# per model across all routing modes.
+
+models:
+  p3_scripting: "anthropic/claude-sonnet-4-6"
+  p1_research: "deepseek/deepseek-chat"          # DeepSeek V3 via OpenRouter — Phase 2+
+
+# Routing mode per stage
+# direct  = call provider SDK with API key from env
+# openrouter = route through OpenRouter API
+routing:
+  p3_scripting: direct        # Anthropic SDK — ANTHROPIC_API_KEY
+  p1_research: openrouter     # OpenRouter — OPENROUTER_API_KEY (Phase 2)

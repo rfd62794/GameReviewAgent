@@ -16,10 +16,11 @@ import sqlite3
 from pathlib import Path
 from datetime import datetime, timezone
 
+import yaml
+
 from core.db import get_connection
 
 # --- Constants ---
-MODEL = "claude-sonnet-4-20250514"
 MAX_TOKENS = 2048
 
 # Word count bounds per ADR-002 and prompt contract
@@ -42,9 +43,53 @@ FORBIDDEN_BODY_PHRASES = [
     "as we said",
 ]
 
-# Prompt contract paths
+# Project paths
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PROMPT_CONTRACT_PATH = _PROJECT_ROOT / "prompts" / "script_generation.md"
+MODELS_CONFIG_PATH = _PROJECT_ROOT / "models.yaml"
+
+
+def load_model_config() -> dict:
+    """
+    Load model configuration from models.yaml.
+    
+    Returns:
+        Dict with model config including 'models' and 'routing' keys.
+    """
+    if not MODELS_CONFIG_PATH.exists():
+        raise ScriptGenerationError(
+            f"Model config not found: {MODELS_CONFIG_PATH}"
+        )
+    with open(MODELS_CONFIG_PATH, encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+def _resolve_model_string(config: dict, stage: str = "p3_scripting") -> str:
+    """
+    Resolve the API model string for a given pipeline stage.
+    
+    For direct routing (Anthropic SDK), strips the provider prefix.
+    For OpenRouter routing, returns the full prefixed string.
+    
+    Args:
+        config: Parsed models.yaml dict.
+        stage: Pipeline stage key (e.g., 'p3_scripting').
+    
+    Returns:
+        Model string suitable for the target API.
+    """
+    canonical = config["models"][stage]  # e.g., "anthropic/claude-sonnet-4-6"
+    routing = config.get("routing", {}).get(stage, "direct")
+    
+    if routing == "direct":
+        # Strip provider prefix for direct SDK calls
+        # "anthropic/claude-sonnet-4-6" -> "claude-sonnet-4-6"
+        if "/" in canonical:
+            return canonical.split("/", 1)[1]
+        return canonical
+    else:
+        # OpenRouter expects the full prefixed string
+        return canonical
 
 
 class ScriptGenerationError(Exception):
@@ -247,6 +292,10 @@ def generate_script(
         system_prompt = _build_system_prompt()
         user_prompt = _build_user_prompt(topic, sources)
 
+        # Load model config and resolve model string
+        config = load_model_config()
+        model = _resolve_model_string(config, "p3_scripting")
+
         # Call Claude Sonnet
         client = anthropic.Anthropic(api_key=api_key)
         last_errors = []
@@ -254,7 +303,7 @@ def generate_script(
         for attempt in range(1, max_retries + 1):
             try:
                 response = client.messages.create(
-                    model=MODEL,
+                    model=model,
                     max_tokens=MAX_TOKENS,
                     system=system_prompt,
                     messages=[{"role": "user", "content": user_prompt}],
