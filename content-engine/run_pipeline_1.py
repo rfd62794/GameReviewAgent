@@ -14,7 +14,7 @@ def run_step(script_name: str):
 
 def print_summary():
     conn = get_connection()
-    cursor = conn.execute("SELECT segment_index, source, ai_image_prompt, search_query FROM asset_briefs WHERE script_id = 1 ORDER BY segment_index ASC")
+    cursor = conn.execute("SELECT segment_index, asset_source, ai_image_prompt, search_query FROM asset_briefs WHERE script_id = 1 ORDER BY segment_index ASC")
     rows = cursor.fetchall()
     conn.close()
     
