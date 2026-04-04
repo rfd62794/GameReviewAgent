@@ -57,6 +57,18 @@ You MUST respond with a single valid JSON object. No markdown fences. No preambl
 
 ---
 
+## VOICE & RHYTHM — NON-NEGOTIABLE
+
+- Maximum sentence length: 20 words. Most sentences should be under 15. Vary length deliberately — short punches after long setups.
+- No paragraph longer than 4 sentences.
+- No academic constructions. Banned phrases: "It is worth noting", "This is particularly evident", "One might argue", "It is important to understand", "In this context", "Furthermore", "Moreover".
+- Write like you're explaining to someone smart who is walking and listening. Not reading. Not taking notes.
+- Every paragraph needs one concrete anchor — a number, a specific mechanic name, a named game, a direct quote from a developer. No abstract paragraphs.
+- Opinion is allowed. Preferred. The script should have a point of view, not just analysis.
+- Transitions between paragraphs: no "Additionally" or "Furthermore". Use a beat. A question. A pivot. "Here's where it gets interesting." "That's the trap." "But there's a catch."
+
+---
+
 ## Validation Rules (Enforced by test anchors)
 
 1. Response MUST be valid JSON — parseable by `json.loads()`.

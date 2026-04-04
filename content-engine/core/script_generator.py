@@ -195,7 +195,15 @@ def _build_system_prompt() -> str:
         "'like I said', 'that question', 'in the intro', 'earlier in this video', "
         "'as we said'.\n"
         "7. These are TWO INDEPENDENT writings, not a split monolith.\n"
-        "8. ALL FOUR KEYS must be present in the JSON response."
+        "8. ALL FOUR KEYS must be present in the JSON response.\n\n"
+        "VOICE & RHYTHM (NON-NEGOTIABLE):\n"
+        "- Max sentence length: 20 words (most under 15). Vary length: short punches after long setups.\n"
+        "- Max 4 sentences per paragraph.\n"
+        "- NO ACADEMIC CONSTRUCTIONS. Banned: 'It is worth noting', 'This is particularly evident', 'One might argue', 'It is important to understand', 'In this context', 'Furthermore', 'Moreover'.\n"
+        "- Write like explaining to someone smart who is walking and listening.\n"
+        "- Every paragraph must have one concrete anchor (number, mechanic name, game name, dev quote). No abstract paragraphs.\n"
+        "- Opinion is preferred. Have a point of view, not just analysis.\n"
+        "- Transitions: No 'Additionally' or 'Furthermore'. Use a beat. A question. A pivot. ('Here's where it gets interesting.' 'That's the trap.')"
     )
 
 
