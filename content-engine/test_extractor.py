@@ -5,7 +5,7 @@ from core.mechanic_extractor import extract
 def test_extractor():
     conn = get_connection()
     # E2E test is using SCRIPT_ID = 1 based on run_p3b.py
-    cursor = conn.execute("SELECT segment_text FROM segments WHERE script_id = 1 ORDER BY segment_index ASC LIMIT 1")
+    cursor = conn.execute("SELECT segment_text FROM asset_briefs WHERE script_id = 1 ORDER BY segment_index ASC LIMIT 1")
     row = cursor.fetchone()
     conn.close()
 
