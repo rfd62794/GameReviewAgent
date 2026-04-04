@@ -1,5 +1,6 @@
 import subprocess
 import json
+import yaml
 import logging
 import re
 import tempfile
@@ -16,6 +17,15 @@ ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
 CLIPS_DIR = ASSETS_DIR / "clips"
 CLIPS_DIR.mkdir(parents=True, exist_ok=True)
 
+CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.yaml"
+try:
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        _config = yaml.safe_load(f)
+        YTDLP_FLAGS = _config.get("ytdlp_extra_flags", [])
+except Exception as e:
+    logger.warning(f"Failed to load config.yaml for yt-dlp: {e}")
+    YTDLP_FLAGS = []
+
 
 def search(query: str, n: int = 5) -> list[dict]:
     """Retrieve top N video candidates using yt-dlp."""
@@ -23,10 +33,14 @@ def search(query: str, n: int = 5) -> list[dict]:
     # yt-dlp "ytsearch5:query" --dump-json --flat-playlist
     cmd = [
         "yt-dlp",
-        f"ytsearch{n}:{query}",
+        "--js-runtimes", f"node:{Path('node.exe').absolute()}"
+    ] + YTDLP_FLAGS + [
+        "ytsearch" + str(n) + ":" + query,
         "--dump-json",
-        "--flat-playlist",
-        "--ignore-errors"
+        "--default-search", "ytsearch",
+        "--no-playlist",
+        "--match-filter", "duration < 1200 & duration > 60",
+        "--reject-title", "shorts|tiktok"
     ]
     try:
         res = subprocess.run(cmd, capture_output=True, text=True, check=True)
@@ -98,7 +112,8 @@ def fetch_transcript(url: str, timeout: int = 15) -> List[Dict] | None:
         temp_path = Path(tempdir)
         cmd = [
             "yt-dlp",
-            "--js-runtimes", f"node:{Path('node.exe').absolute()}",
+            "--js-runtimes", f"node:{Path('node.exe').absolute()}"
+        ] + YTDLP_FLAGS + [
             "--write-auto-subs",
             "--sub-langs", "en",
             "--skip-download",
@@ -196,7 +211,8 @@ def download_clip(url: str, start: int, end: int, buffer: int = 2) -> Path | Non
     
     cmd = [
         "yt-dlp",
-        "--js-runtimes", f"node:{Path('node.exe').absolute()}",
+        "--js-runtimes", f"node:{Path('node.exe').absolute()}"
+    ] + YTDLP_FLAGS + [
         "--download-sections", f"*{s}-{e}",
         "-f", "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
         "-o", str(out_path),
