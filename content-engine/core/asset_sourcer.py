@@ -31,39 +31,33 @@ except Exception:
 
 
 def _build_pollinations_prompt(segment: dict) -> str:
-    """Build a Pollinations art prompt from segment metadata per MVP directive."""
-    text = segment.get("segment_text", "")
-    query = segment.get("search_query", "")
-    prompt = segment.get("ai_image_prompt", "")
+    """
+    Build a Pollinations art prompt from mechanic extractor output stored in asset_briefs.
 
-    # Use existing ai_image_prompt if one was set during segmentation
-    if prompt:
-        return prompt
+    Priority:
+      1. ai_image_prompt — set by segmentation for 'ai_image' type segments
+      2. game_title + moment from extractor → "{game} {moment} digital art, ..."
+      3. mechanic only → "{mechanic} game mechanic concept art, ..."
+      4. generic fallback
+    """
+    # 1. Use ai_image_prompt if segmentation already craft one
+    existing = segment.get("ai_image_prompt")
+    if existing:
+        return existing
 
-    # Otherwise derive from segment text — extract game title / mechanic heuristics
-    text_lower = text.lower()
-    game = None
-    mechanic = None
+    # 2. Read extractor output columns directly
+    game_title = segment.get("game_title")  # e.g. "Cookie Clicker"
+    mechanic   = segment.get("mechanic")    # e.g. "prestige"
+    moment     = segment.get("moment")      # e.g. "ascension button press"
 
-    if "cookie clicker" in text_lower:
-        game = "Cookie Clicker"
-    elif "adventure capitalist" in text_lower:
-        game = "AdVenture Capitalist"
-    elif query and query not in ("gaming", ""):
-        game = query.title()
-
-    # Mechanic keywords
-    for kw in ["idle", "clicker", "prestige", "ascension", "multiplier", "resource", "loop", "upgrade"]:
-        if kw in text_lower:
-            mechanic = kw
-            break
-
-    if game and mechanic:
-        return f"{game} {mechanic} moment digital art, vibrant game UI screenshot style, 4K"
-    elif game:
-        return f"{game} gameplay digital art, vibrant, high quality"
+    if game_title and moment:
+        return f"{game_title} {moment} digital art, vibrant game UI screenshot style, 4K"
+    elif game_title and mechanic:
+        return f"{game_title} {mechanic} moment digital art, vibrant game UI screenshot style, 4K"
+    elif game_title:
+        return f"{game_title} gameplay digital art, vibrant, high quality, 4K"
     elif mechanic:
-        return f"{mechanic} game design concept art, vivid colors, premium illustration"
+        return f"{mechanic} game mechanic concept art, vivid digital illustration, 4K"
     else:
         return "video game design concept art, vivid digital illustration, high quality, dark mode"
 

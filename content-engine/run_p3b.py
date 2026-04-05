@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from core.db import get_connection
 from core.segmentation import segment_script
+from core.mechanic_extractor import extract as extract_mechanic
 
 SCRIPT_ID = 1
 
@@ -49,17 +50,28 @@ def main():
         tags=tags
     )
 
-    print(f"      Created {len(segments)} segments. Inserting to database...")
+    print(f"      Created {len(segments)} segments. Running mechanic extractor + inserting...")
     
     # Clear existing briefs for this script to allow safe re-runs
     conn.execute("DELETE FROM asset_briefs WHERE script_id = ?", (SCRIPT_ID,))
 
     for seg in segments:
+        # Run mechanic extractor on each segment to get authoritative game/mechanic/moment
+        extracted = extract_mechanic(seg["segment_text"])
+        games   = extracted.get("games", [])
+        mechanic = extracted.get("mechanic") or None
+        moment   = extracted.get("moment") or None
+        game_title = games[0] if games else None
+
+        print(f"    seg {seg['segment_index']}: game={game_title!r} mechanic={mechanic!r} moment={moment!r}")
+
         conn.execute(
             """
             INSERT INTO asset_briefs 
-            (script_id, segment_index, segment_text, estimated_duration_s, visual_type, search_query, ai_image_prompt, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
+            (script_id, segment_index, segment_text, estimated_duration_s,
+             visual_type, search_query, ai_image_prompt,
+             game_title, mechanic, moment, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
             """,
             (
                 seg["script_id"],
@@ -68,7 +80,10 @@ def main():
                 seg["estimated_duration_s"],
                 seg["visual_type"],
                 seg["search_query"],
-                seg["ai_image_prompt"]
+                seg["ai_image_prompt"],
+                game_title,
+                mechanic,
+                moment,
             )
         )
     
