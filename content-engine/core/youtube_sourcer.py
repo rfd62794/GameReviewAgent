@@ -4,12 +4,14 @@ import yaml
 import logging
 import re
 import tempfile
+import sqlite3
 from pathlib import Path
-from typing import List, Dict
+from datetime import datetime
+from typing import List, Dict, Optional
 
 from core.llm_client import create_llm_client as get_llm_client
 from core.mechanic_extractor import extract as extract_mechanic
-from core.index_manager import lookup, record_attempt, record_success
+from core.index_manager import lookup, record_attempt, record_success, boost_video_segments
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +108,7 @@ def vtt_to_text(vtt_path: Path) -> List[Dict]:
         return []
 
 
-def fetch_transcript(url: str, timeout: int = 15) -> List[Dict] | None:
+def fetch_transcript(url: str, timeout: int = 300) -> List[Dict] | None:
     """Fetch auto-generated captions/subtitles via VTT."""
     with tempfile.TemporaryDirectory() as tempdir:
         temp_path = Path(tempdir)
@@ -137,6 +139,80 @@ def fetch_transcript(url: str, timeout: int = 15) -> List[Dict] | None:
             return None
 
 
+def chunk_transcript(transcript: List[Dict], chunk_size: int = 4000, overlap: int = 500) -> List[str]:
+    """Split transcript into overlapping chunks of words/lines for LLM processing."""
+    if not transcript:
+        return []
+
+    lines = [f"[{entry['timestamp_s']}s] {entry['text']}" for entry in transcript]
+    
+    # Simple word-count based chunking
+    chunks = []
+    current_chunk = []
+    current_word_count = 0
+    
+    for line in lines:
+        words = line.split()
+        if current_word_count + len(words) > chunk_size:
+            chunks.append("\n".join(current_chunk))
+            # Start next chunk with overlap
+            # For simplicity, we just keep the last 20 lines as overlap
+            current_chunk = current_chunk[-20:] + [line]
+            current_word_count = sum(len(l.split()) for l in current_chunk)
+        else:
+            current_chunk.append(line)
+            current_word_count += len(words)
+            
+    if current_chunk:
+        chunks.append("\n".join(current_chunk))
+        
+    return chunks
+
+
+def merge_overlapping_segments(segments: List[Dict]) -> List[Dict]:
+    """
+    Deduplication rule for judge_relevance() output.
+    Sort by timestamp_start and merge segments with >50% overlap of the same mechanic.
+    """
+    if not segments:
+        return []
+        
+    # Sort by mechanic then by start time
+    segments.sort(key=lambda x: (x.get("mechanic_shown", ""), x.get("timestamp_start", 0)))
+    
+    merged_all = []
+    if not segments: return []
+    
+    curr = segments[0]
+    for next_seg in segments[1:]:
+        if curr.get("mechanic_shown") == next_seg.get("mechanic_shown"):
+            # Same mechanic, check overlap
+            overlap = min(curr["timestamp_end"], next_seg["timestamp_end"]) - max(curr["timestamp_start"], next_seg["timestamp_start"])
+            shorter = min(curr["timestamp_end"] - curr["timestamp_start"], next_seg["timestamp_end"] - next_seg["timestamp_start"])
+            
+            if shorter > 0 and (overlap / shorter) > 0.5:
+                # Merge
+                curr = {
+                    "timestamp_start": min(curr["timestamp_start"], next_seg["timestamp_start"]),
+                    "timestamp_end": max(curr["timestamp_end"], next_seg["timestamp_end"]),
+                    "confidence": max(curr["confidence"], next_seg["confidence"]),
+                    "mechanic_shown": curr["mechanic_shown"],
+                    "reason": curr["reason"] if curr["confidence"] >= next_seg["confidence"] else next_seg["reason"]
+                }
+            else:
+                merged_all.append(curr)
+                curr = next_seg
+        else:
+            merged_all.append(curr)
+            curr = next_seg
+            
+    merged_all.append(curr)
+    
+    # Final sort by confidence DESC
+    merged_all.sort(key=lambda x: x["confidence"], reverse=True)
+    return merged_all
+
+
 def find_transcript_window(transcript: List[Dict], keywords: list[str]) -> str:
     """Find the transcript segment centered around keyword occurrences returning formatted string."""
     best_idx = -1
@@ -161,45 +237,54 @@ def find_transcript_window(transcript: List[Dict], keywords: list[str]) -> str:
 
 
 def judge_relevance(segment_text: str, candidate: dict, transcript: List[Dict], keywords: list[str]) -> dict:
-    """Ask LLM to judge sequence relevance based on transcript."""
-    # Load prompt contract
+    """Ask LLM to judge sequence relevance based on FULL transcript using chunking."""
     prompt_path = Path(__file__).resolve().parent.parent / "prompts" / "clip_relevance.md"
     try:
         with open(prompt_path, "r", encoding="utf-8") as f:
             sys_prompt = f.read()
     except FileNotFoundError:
         logger.error("Clip relevance prompt contract not found.")
-        return {"relevant": False, "confidence": 0.0}
+        return {"video_relevant": False, "segments": []}
 
-    excerpt = find_transcript_window(transcript, keywords)
-
-    # Format prompt by replacing placeholders (avoids curly brace clashes with JSON schema in prompt)
-    formatted = sys_prompt.replace("{segment_text}", segment_text)
-    formatted = formatted.replace("{video_title}", candidate.get("title", ""))
-    formatted = formatted.replace("{channel}", candidate.get("channel", ""))
-    formatted = formatted.replace("{transcript_excerpt}", excerpt)
+    chunks = chunk_transcript(transcript)
+    all_segments = []
+    video_relevant = False
 
     client = get_llm_client(model="deepseek/deepseek-chat")
-    try:
-        response_dict = client.generate(
-            system_prompt="You evaluate YouTube transcript excerpts against a strict JSON schema.",
-            prompt=formatted,
-            temperature=0.0
-        )
-        response_text = response_dict.get("text", "")
-        
-        # Strip code fences if present
-        cleaned = re.sub(r'```json|```', '', response_text).strip()
-        # Find outermost JSON object
-        # Note: robust match for JSON object structure, avoiding generic text
-        match = re.search(r'\{[^{}]*\}', cleaned, re.DOTALL)
-        if not match:
-            logger.error("No JSON object found in LLM response")
-            return {"relevant": False, "confidence": 0.0}
-        return json.loads(match.group())
-    except Exception as e:
-        logger.error(f"LLM judgment failed: {e}")
-        return {"relevant": False, "confidence": 0.0}
+    
+    for chunk in chunks:
+        formatted = sys_prompt.replace("{segment_text}", segment_text)
+        formatted = formatted.replace("{video_title}", candidate.get("title", ""))
+        formatted = formatted.replace("{channel}", candidate.get("channel", ""))
+        formatted = formatted.replace("{transcript_excerpt}", chunk)
+
+        try:
+            response_dict = client.generate(
+                system_prompt="You evaluate YouTube transcripts. Returns strict JSON with 'video_relevant' and 'segments' array.",
+                prompt=formatted,
+                temperature=0.0
+            )
+            response_text = response_dict.get("text", "")
+            cleaned = re.sub(r'```json|```', '', response_text).strip()
+            match = re.search(r'\{.*\}', cleaned, re.DOTALL)
+            if not match: continue
+            
+            judgment = json.loads(match.group())
+            if judgment.get("video_relevant"):
+                video_relevant = True
+                segs = judgment.get("segments", [])
+                # Only keep high confidence segments
+                all_segments.extend([s for s in segs if s.get("confidence", 0) >= 0.8])
+        except Exception as e:
+            logger.error(f"LLM chunk judgment failed: {e}")
+
+    # Merge overlapping segments
+    final_segments = merge_overlapping_segments(all_segments)
+    
+    return {
+        "video_relevant": video_relevant and len(final_segments) > 0,
+        "segments": final_segments
+    }
 
 
 def download_clip(url: str, start: int, end: int, buffer: int = 2) -> Path | None:
@@ -295,56 +380,72 @@ def source_for_segment(segment: dict) -> dict | None:
 
     # We evaluate sequentially across top queries until a hit.
     best_candidate = None
-    highest_conf = 0.0
+    all_found_segments = []
     
-    # Try the top query first (or could iterate safely, but let's stick to simple logic: top query gets candidates)
-    
-    # Limit number of queries to search to avoid exploding yt-dlp calls
+    # Limit number of queries to search
     for query in search_queries[:2]:
-        if best_candidate and best_candidate.get("confidence", 0.0) >= 0.8:
+        if best_candidate:
             break
             
         candidates = search(query, n=5)
         for cand in candidates:
             url = cand.get("url")
-            if not url:
-                continue
+            if not url: continue
                 
             transcript = fetch_transcript(url)
-            if not transcript:
-                continue
+            if not transcript: continue
                 
             keywords = query.split()
             judgment = judge_relevance(segment_text, cand, transcript, keywords)
-            conf = judgment.get("confidence", 0.0)
             
-            print(f"  ? CANDIDATE: '{cand.get('title')}' -> Confidence: {conf}")
+            if not judgment.get("video_relevant"):
+                continue
+                
+            segments = judgment.get("segments", [])
+            if not segments:
+                continue
+                
+            print(f"  ? CANDIDATE: '{cand.get('title')}' -> Found {len(segments)} segments")
+            for s in segments:
+                print(f"    - {s['mechanic_shown']} at {s['timestamp_start']}s (Conf: {s['confidence']})")
             
-            # c) Record attempt
-            top_game = games[0] if games else "unknown"
-            record_attempt(top_game, mechanic, query, cand.get("channel"))
+            # --- PRIMARY SEGMENT SELECTION ---
+            # We look for a segment that exactly matches the requested mechanic OR has highest confidence
+            primary = None
+            for s in segments:
+                if s["mechanic_shown"] == mechanic:
+                    primary = s
+                    break
+            if not primary:
+                primary = segments[0] # Highest confidence
+                
+            # --- QUEUEING REMAINING SEGMENTS ---
+            remaining = [s for s in segments if s != primary]
+            if remaining:
+                print(f"    [Queue] Adding {len(remaining)} segments to background download queue...")
+                queue_segments(url, cand.get("id"), remaining, top_game)
             
-            if conf >= 0.8:
-                best_candidate = {**cand, **judgment}
-                best_candidate["_query"] = query
-                break
-            elif conf > highest_conf:
-                highest_conf = conf
-                best_candidate = {**cand, **judgment}
-                best_candidate["_query"] = query
+            best_candidate = {**cand, **primary}
+            best_candidate["_query"] = query
+            break
 
-    if best_candidate and best_candidate.get("confidence", 0.0) >= 0.8:
-        print(f"  ---> ACCEPTED: {best_candidate.get('title')} (Conf: {best_candidate.get('confidence')})")
-        # d) On acceptance
+    if best_candidate:
+        conf = best_candidate.get("confidence", 0)
+        print(f"  ---> ACCEPTED: {best_candidate.get('title')} (Conf: {conf})")
+        
+        # d) Record success
         top_game = games[0] if games else "unknown"
         record_success(
             game_title=top_game,
             mechanic=mechanic,
             query=best_candidate["_query"],
             channel=best_candidate.get("channel"),
-            confidence=best_candidate.get("confidence"),
+            confidence=conf,
             segment_text=segment_text
         )
+        
+        # Boost segments from same video in queue
+        boost_video_segments(best_candidate.get("id"))
         
         clip_path = download_clip(
             url=best_candidate.get("url"),
@@ -359,6 +460,28 @@ def source_for_segment(segment: dict) -> dict | None:
                 "metadata": best_candidate
             }
             
-    # e) On all candidates rejected -> Pollinations fallback natively happens upstream if None returned
     print(f"  ---> REJECTED ALL CANDIDATES. Falling back upstream.")
     return None
+
+
+def queue_segments(url: str, video_id: str, segments: List[Dict], game_title: str):
+    """Add segments to the background download queue."""
+    conn = get_connection()
+    now = datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ')
+    
+    try:
+        for s in segments:
+            conn.execute("""
+                INSERT INTO clip_download_queue (
+                    youtube_url, youtube_video_id, timestamp_start, timestamp_end,
+                    confidence, mechanic_shown, game_title, status, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', ?)
+            """, (
+                url, video_id, s["timestamp_start"], s["timestamp_end"],
+                s["confidence"], s["mechanic_shown"], game_title, now
+            ))
+        conn.commit()
+    except Exception as e:
+        logger.error(f"Failed to queue segments: {e}")
+    finally:
+        conn.close()

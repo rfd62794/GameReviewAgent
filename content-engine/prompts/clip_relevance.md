@@ -8,20 +8,24 @@ Your output MUST be a strict JSON object. Do not include any conversational text
 ## Constraints
 1. **TRANSCRIPT IS KING**: You MUST NOT judge a video as relevant based on the title alone. The transcript excerpt MUST confirm that the exact gameplay, mechanic, or concept described in the script segment is occurring in the video.
 2. **Commentary / Unrelated**: If the transcript consists of a creator talking to the camera without showing the gameplay mechanics, or talking about unrelated topics, reject it.
-3. **Timestamps**: Identify the exact segment of the transcript that represents the visual being discussed. Extract `timestamp_start` and `timestamp_end` in integer seconds.
-4. **Confidence**: Provide a confidence score from `0.0` to `1.0`. 
-   - `0.8 - 1.0` = Perfect visual match confirmed by transcript.
-   - `0.5 - 0.79` = Tangentially related, or no clear timestamp bounds.
-   - `0.0 - 0.49` = Irrelevant or entirely commentary without visual proof.
+3. **Timestamps**: Identify ALL segments of the transcript that represent the visual being discussed OR related mechanics. Extract `timestamp_start` and `timestamp_end` in integer seconds.
+4. **Segments**: Each segment must be at least 8 seconds long. Maximum gap between start and end is 45 seconds.
+5. **Confidence**: Provide a confidence score from `0.0` to `1.0`. Minimum confidence to include a segment is `0.8` for the `segments` list.
+6. **Related Mechanics**: Include moments for related mechanics even if not the primary requested mechanic (e.g., if searching for `prestige_reset`, also flag `heavenly_chips_tree` or `ascension_upgrade` moments).
 
 ## Schema
 ```json
 {
-  "relevant": true/false,
-  "timestamp_start": 0,
-  "timestamp_end": 0,
-  "confidence": 0.0,
-  "reason": "Max 100 characters explaining the judgment based on the transcript."
+  "video_relevant": true/false,
+  "segments": [
+    {
+      "timestamp_start": int,
+      "timestamp_end": int,
+      "confidence": float 0.0-1.0,
+      "mechanic_shown": "snake_case_mechanic",
+      "reason": "Max 80 characters explaining the moment"
+    }
+  ]
 }
 ```
 

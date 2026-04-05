@@ -75,8 +75,27 @@ def record_success(game_title: str, mechanic: str, query: str, channel: str | No
     conn.commit()
     conn.close()
     
+    # --- Priority Boosting for segments from the same video ---
+    # Since record_success doesn't have the video_id directly, we rely on the caller to handle it 
+    # OR we can assume the video_id might be passed in future refactors. 
+    # For now, I'll add the helper function. 
+    
     # Trigger expansion asynchronously or block execution (as specified, it calls it)
     expand_index(game_title, mechanic, segment_text, query, channel)
+
+def boost_video_segments(youtube_video_id: str):
+    """Increase confidence of queued segments from a proven-good video."""
+    conn = get_connection()
+    try:
+        conn.execute(
+            "UPDATE clip_download_queue SET confidence = confidence * 1.1 WHERE youtube_video_id = ? AND status = 'queued'",
+            (youtube_video_id,)
+        )
+        conn.commit()
+    except Exception as e:
+        logger.error(f"Failed to boost video segments: {e}")
+    finally:
+        conn.close()
 
 def expand_index(game_title: str, mechanic: str, segment_text: str, accepted_query: str, accepted_channel: str | None):
     """Use the LLM updater to expand queries upon success."""
