@@ -8,23 +8,24 @@ Your output MUST be strict, perfectly formatted JSON. Do not write any conversat
 ## Extraction Rules
 1. **Title Extraction**: Extract any specific game titles mentioned or strongly implied.
    - Good: `["Cookie Clicker", "Adventure Capitalist"]`
-   - Bad genres/tags: `["idle game", "clicker", "rpg"]` (If no specific game is mentioned, leave `games` array empty `[]`).
-2. **Mechanic Identification**: Identify the core game mechanic being analyzed. Express it in clean `snake_case`. (e.g. `prestige_reset`, `skill_tree`, `inventory_management`).
-3. **Screen Moment**: Describe what should literally be visible ON SCREEN to illustrate this mechanic. This must be a visual action, not an abstract idea. (e.g. `ascension button press`, `tech tree unlocking`).
-4. **Search Queries**: Provide up to 3 `yt-dlp` target search strings, ordered best to worst specificity.
-   - ALWAYS include the format: "{game_title} {mechanic} {moment} gameplay"
-   - DO NOT include commentary, review, or generic terms unless no games are found.
-   - Example targeting: `"Cookie Clicker prestige ascension gameplay"`
-5. **No-Game Fallback**: If games[] is empty, search queries MUST follow this format:
-   "{mechanic_keyword} {genre} mechanic explained gameplay"
-   Example: "prestige reset idle game mechanic gameplay"
-   Never use abstract terms alone ("game design", "psychology", "progression") as the primary query term. Always anchor to a demonstrable mechanic.
+2. **Mechanic Identification**: Identify the core game mechanic being analyzed. Express it in clean `snake_case`. (e.g. `prestige_reset`, `skill_tree`).
+3. **Mechanic Description (New)**: Describe the mechanic in one clear academic sentence for analytical context.
+4. **Screen Moment**: Describe what should literally be visible ON SCREEN to illustrate this mechanic. This must be a visual action, not an abstract idea. (e.g. `ascension button press`, `tech tree unlocking`).
+5. **Search Queries (YouTube-Softened)**: Provide up to 3 `yt-dlp` target search strings, ordered best to worst specificity.
+   - **CRITICAL RULE**: Do not use academic or descriptive terms (e.g. "resource accumulation acceleration").
+   - **USE GAMER SEARCH TERMS**: Think like a human searching on YouTube. Use noun-heavy, simple keywords.
+   - Example Good: `"Cookie Clicker prestige ascension button press"`
+   - Example Bad: `"Cookie Clicker prestige reset mechanic gameplay overview"`
+6. **No-Game Fallback**: If games[] is empty, search queries MUST follow this format:
+   "{mechanic_keyword} {genre} gameplay"
+   Example: "prestige reset idle game"
 
 ## Schema
 ```json
 {
   "games": ["string"],
   "mechanic": "string",
+  "mechanic_description": "string",
   "moment": "string",
   "search_queries": [
      "string"
