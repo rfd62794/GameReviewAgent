@@ -133,19 +133,51 @@ def search_pexels_image(query: str, segment_id: int) -> str | None:
     return None
 
 
-def generate_pollinations_image(prompt: str, segment_id: int) -> str | None:
-    """Generate a fallback image using Pollinations.ai HTTP GET."""
-    if not prompt: return None
-    
-    # URL encode the prompt
+def _make_fallback_frame(segment_id: int) -> str:
+    """Generate a solid dark-blue #1a1a2e frame via FFmpeg as last-resort fallback."""
+    import subprocess
+    out_path = DL_DIR / f"fallback_seg_{segment_id}.jpg"
+    cmd = [
+        "ffmpeg", "-y",
+        "-f", "lavfi", "-i", "color=c=#1a1a2e:s=1920x1080:r=1",
+        "-frames:v", "1",
+        str(out_path)
+    ]
+    try:
+        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        print(f"    [FALLBACK] Dark-blue frame generated: {out_path.name}")
+        return str(out_path)
+    except Exception as e:
+        print(f"    [FALLBACK FAILED] FFmpeg color frame error: {e}")
+        return None
+
+
+def generate_pollinations_image(prompt: str, segment_id: int, timeout: int = 45) -> str | None:
+    """Generate an image using Pollinations.ai HTTP GET. Retries once on failure."""
+    if not prompt:
+        return None
+
     encoded_prompt = urllib.parse.quote(prompt)
     url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1920&height=1080&nologo=true"
-    
-    try:
-        out_path = DL_DIR / f"ai_img_seg_{segment_id}.jpg"
-        return str(download_file(url, out_path))
-    except Exception as e:
-        print(f"Pollinations error: {e}")
+    out_path = DL_DIR / f"ai_img_seg_{segment_id}.jpg"
+
+    for attempt in (1, 2):
+        try:
+            r = requests.get(url, timeout=timeout, stream=True)
+            r.raise_for_status()
+            content_type = r.headers.get("Content-Type", "")
+            content_length = int(r.headers.get("Content-Length", 0))
+            with open(out_path, "wb") as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            size_kb = out_path.stat().st_size // 1024
+            print(f"    [Pollinations] attempt {attempt}: OK — {content_type} {size_kb}KB ({out_path.name})")
+            return str(out_path)
+        except Exception as e:
+            print(f"    [Pollinations] attempt {attempt} FAILED: {e}")
+            if attempt == 1:
+                print(f"    [Pollinations] retrying...")
+
     return None
 
 
@@ -167,8 +199,28 @@ def source_asset_for_segment(segment: dict) -> dict:
     # ── MVP MODE: Pollinations-only ──────────────────────────────────────────
     if not YOUTUBE_CLIP_ENABLED:
         poll_prompt = _build_pollinations_prompt(segment)
-        print(f"  [MVP] Pollinations prompt → {poll_prompt}")
+        seg_idx = segment.get("segment_index", seg_id)
+        game    = segment.get("game_title") or "(none)"
+        mechanic = segment.get("mechanic") or "(none)"
+        from core.assembler import _extract_key_phrase, _escape_drawtext
+        key_phrase = _extract_key_phrase(segment.get("segment_text", ""))
+        escaped    = _escape_drawtext(key_phrase)
+        drawtext_str = (
+            f"drawbox=x=0:y=810:w=iw:h=140:color=black@0.55:t=fill,"
+            f"drawtext=text='{escaped}':fontsize=52:fontcolor=white"
+            f":x=(w-text_w)/2:y=840:shadowcolor=black@0.6:shadowx=2:shadowy=2"
+        )
+
+        print(f"\n{'='*60}")
+        print(f"  SEG {seg_idx} | game={game} | mechanic={mechanic}")
+        print(f"  Pollinations prompt: {poll_prompt}")
+        print(f"  Drawtext           : \"{key_phrase}\"")
+
         ai = generate_pollinations_image(poll_prompt, seg_id)
+        if not ai:
+            print(f"  [FALLBACK] Pollinations failed both attempts — using dark-blue frame")
+            ai = _make_fallback_frame(seg_id)
+
         if ai:
             return {"path": ai, "source": "ai_generated"}
         return {"path": None, "source": None}
