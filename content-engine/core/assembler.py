@@ -117,6 +117,13 @@ def preprocess_segment(segment: Dict[str, Any], temp_dir: Path, config: Dict[str
         pan_x = ["-0.02", "0.02", "0", "-0.02"][i % 4]
         pan_y = ["0", "-0.02", "0.02", "0"][i % 4]
         
+        # Zoom speed 0.0015 @ 30fps = ~1.5x zoom in 10s
+        frames = int(clip_duration * 30)
+        if zoom_direction == "in":
+            lb = "min(zoom+0.0015,1.5)"
+        else:
+            lb = "if(lte(zoom,1.0),1.5,max(1.001,zoom-0.0015))"
+
         # -------------------------------------------------------------
         # PASS 1: Ken Burns (Zoompan) only
         # -------------------------------------------------------------
