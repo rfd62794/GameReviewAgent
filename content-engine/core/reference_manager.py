@@ -1,4 +1,5 @@
 import os
+import re
 import sqlite3
 import subprocess
 import logging
@@ -95,15 +96,21 @@ def store_reference(game_title: str, image_bytes: bytes) -> str:
         
     conn = get_connection()
     try:
-        # Upsert: Update if exists, else insert
-        conn.execute(
-            """
-            INSERT INTO game_clip_index (game_title, reference_image_path, mechanic, search_query)
-            VALUES (?, ?, 'N/A', 'N/A')
-            ON CONFLICT(game_title, mechanic) DO UPDATE SET reference_image_path = excluded.reference_image_path
-            """,
-            (game_title, str(path))
+        # Update all existing rows for this game to ensure style consistency
+        cursor = conn.execute(
+            "UPDATE game_clip_index SET reference_image_path = ? WHERE game_title = ?",
+            (str(path), game_title)
         )
+        
+        # If no rows were updated, insert a new entry
+        if cursor.rowcount == 0:
+            conn.execute(
+                """
+                INSERT INTO game_clip_index (game_title, reference_image_path, mechanic, search_query)
+                VALUES (?, ?, 'N/A', 'N/A')
+                """,
+                (game_title, str(path))
+            )
         conn.commit()
     finally:
         conn.close()

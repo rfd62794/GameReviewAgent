@@ -72,6 +72,7 @@ def get_page_images(page_title: str, game_slug: str) -> List[str]:
         data = r.json()
         pages = data.get("query", {}).get("pages", {})
         if not pages:
+            logger.warning(f"No pages found for title {page_title} on {game_slug}")
             return []
             
         first_page = list(pages.values())[0]
@@ -79,16 +80,17 @@ def get_page_images(page_title: str, game_slug: str) -> List[str]:
         image_titles = [img["title"] for img in images if not img["title"].lower().endswith(('.svg', '.ico', '.gif'))]
         
         if not image_titles:
+            logger.warning(f"No valid image titles found on {page_title}")
             return []
 
         # 2. Get info for each image
         image_urls = []
-        for title in image_titles[:5]: # limit to first 5 for speed
+        for title in image_titles[:10]: # Check first 10
             info_params = {
                 "action": "query",
                 "titles": title,
                 "prop": "imageinfo",
-                "iiprop": "url|size",
+                "iiprop": "url|size|dimensions",
                 "format": "json"
             }
             ir = requests.get(api_url, params=info_params, headers={"User-Agent": USER_AGENT}, timeout=10)
@@ -96,10 +98,14 @@ def get_page_images(page_title: str, game_slug: str) -> List[str]:
             ipages = idata.get("query", {}).get("pages", {})
             if ipages:
                 iface = list(ipages.values())[0]
-                info = iface.get("imageinfo", [{}])[0]
+                info_list = iface.get("imageinfo", [])
+                if not info_list:
+                    continue
+                info = info_list[0]
                 url = info.get("url")
                 width = info.get("width", 0)
-                if url and width >= 800:
+                # Loosen to 400px for style reference
+                if url and width >= 400:
                     image_urls.append(url)
                     
         return image_urls

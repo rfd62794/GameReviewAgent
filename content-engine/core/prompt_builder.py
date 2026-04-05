@@ -1,4 +1,5 @@
 import re
+from typing import List
 
 def extract_key_phrase(segment_text: str, max_words: int = 9) -> str:
     """
@@ -102,7 +103,8 @@ def build_variant_prompts(game_title: str, mechanic: str, moment: str, n: int = 
     
     prompts = [base]
     for i in range(1, n):
-        mod = modifiers[i % len(modifiers)]
+        # Use i-1 to ensure modifiers[0] is used for variant 1
+        mod = modifiers[(i-1) % len(modifiers)]
         prompts.append(f"{base}, {mod}")
         
     return prompts
