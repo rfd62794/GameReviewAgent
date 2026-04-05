@@ -40,7 +40,9 @@ def search_game_page(game_title: str, game_slug: str, mechanic: Optional[str] = 
     """Search for the main game page or mechanic page on the wiki. Returns page title."""
     url = f"https://{game_slug}.fandom.com/api.php"
     
-    query = f"{game_title} {mechanic}" if mechanic else game_title
+    # Normalize mechanic: snake_case -> spaces
+    mech_norm = mechanic.replace("_", " ") if mechanic else None
+    query = f"{game_title} {mech_norm}" if mech_norm else game_title
     
     params = {
         "action": "query",
