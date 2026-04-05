@@ -6,6 +6,8 @@ import urllib.parse
 from pathlib import Path
 from dotenv import load_dotenv
 
+from core.llm_client import create_llm_client
+
 load_dotenv()
 
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
@@ -14,11 +16,13 @@ USER_AGENT = "ContentEngine/1.0 (rfditservices.com)"
 ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
 LOCAL_GAMEPLAY_DIR = ASSETS_DIR / "gameplay"
 DL_DIR = ASSETS_DIR / "downloads"
+GENERATED_DIR = ASSETS_DIR / "generated"
 
 from core.youtube_sourcer import source_for_segment as yt_source
 
 LOCAL_GAMEPLAY_DIR.mkdir(parents=True, exist_ok=True)
 DL_DIR.mkdir(parents=True, exist_ok=True)
+GENERATED_DIR.mkdir(parents=True, exist_ok=True)
 
 # --- Config flags ---
 _CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.yaml"
@@ -123,31 +127,45 @@ def _make_fallback_frame(segment_id: int) -> str:
         return None
 
 
-def generate_pollinations_image(prompt: str, segment_id: int, timeout: int = 45) -> str | None:
-    """Generate an image using Pollinations.ai HTTP GET. Retries once on failure."""
+def generate_ai_image(prompt: str, segment_id: int) -> str | None:
+    """Generate an image using OpenRouter multimodal models. Saves as PNG."""
     if not prompt:
         return None
 
-    encoded_prompt = urllib.parse.quote(prompt)
-    url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1920&height=1080&nologo=true"
-    out_path = DL_DIR / f"ai_img_seg_{segment_id}.jpg"
+    # Load config for model/aspect ratio
+    # Defaulting if not found in root config.yaml
+    model = "google/gemini-2.5-flash-image"
+    aspect_ratio = "16:9"
+    
+    _models_path = Path(__file__).resolve().parent.parent / "models.yaml"
+    try:
+        with open(_models_path, "r", encoding="utf-8") as f:
+            m_cfg = yaml.safe_load(f)
+            model = m_cfg.get("models", {}).get("p4_image_gen", model)
+            aspect_ratio = m_cfg.get("image_config", {}).get("aspect_ratio_midform", aspect_ratio)
+    except:
+        pass
 
-    for attempt in (1, 2):
-        try:
-            r = requests.get(url, timeout=timeout, stream=True)
-            r.raise_for_status()
-            content_type = r.headers.get("Content-Type", "")
-            content_length = int(r.headers.get("Content-Length", 0))
+    out_path = GENERATED_DIR / f"ai_img_seg_{segment_id}.png"
+    client = create_llm_client(model=model)
+
+    try:
+        print(f"    [OpenRouter AI] Generating image for segment {segment_id}...")
+        image_bytes = client.generate_image(
+            prompt=prompt,
+            aspect_ratio=aspect_ratio,
+            image_size="2K",
+            model=model
+        )
+        
+        if image_bytes:
             with open(out_path, "wb") as f:
-                for chunk in r.iter_content(chunk_size=8192):
-                    f.write(chunk)
+                f.write(image_bytes)
             size_kb = out_path.stat().st_size // 1024
-            print(f"    [Pollinations] attempt {attempt}: OK — {content_type} {size_kb}KB ({out_path.name})")
+            print(f"    [OpenRouter AI] OK — {size_kb}KB ({out_path.name})")
             return str(out_path)
-        except Exception as e:
-            print(f"    [Pollinations] attempt {attempt} FAILED: {e}")
-            if attempt == 1:
-                print(f"    [Pollinations] retrying...")
+    except Exception as e:
+        print(f"    [OpenRouter AI] FAILED: {e}")
 
     return None
 
@@ -182,7 +200,7 @@ def source_asset_for_segment(segment: dict) -> dict:
         print(f"  SEG {segment.get('segment_index')} | game={game_title or '(none)'} | mechanic={mechanic or '(none)'}")
         print(f"  Pollinations Prompt: {poll_prompt}")
 
-        ai = generate_pollinations_image(poll_prompt, seg_id)
+        ai = generate_ai_image(poll_prompt, seg_id)
         if not ai:
             print(f"  [FALLBACK] Pollinations failed both attempts — using dark-blue frame")
             ai = _make_fallback_frame(seg_id)
@@ -219,7 +237,7 @@ def source_asset_for_segment(segment: dict) -> dict:
 
     # 3. AI Image / universal fallback
     poll_prompt = _build_pollinations_prompt(segment) if not prompt else prompt
-    ai = generate_pollinations_image(poll_prompt, seg_id)
+    ai = generate_ai_image(poll_prompt, seg_id)
     if ai:
         return {"path": ai, "source": "ai_image"}
 

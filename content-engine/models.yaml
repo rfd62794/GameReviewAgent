@@ -17,6 +17,13 @@ image_config:
   aspect_ratio_midform: "16:9"
   aspect_ratio_short: "9:16"
   size: "2K"
+  p4_image_gen: "google/gemini-2.5-flash-image"
+
+# Image generation specific config
+image_config:
+  aspect_ratio_midform: "16:9"
+  aspect_ratio_short: "9:16"
+  size: "2K"
 
 # Routing mode per stage
 # direct  = call provider SDK with API key from env
