@@ -2,6 +2,7 @@ import re
 import subprocess
 import json
 import math
+import shutil
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
@@ -9,6 +10,14 @@ try:
     import whisper
 except ImportError:
     whisper = None
+
+
+def get_ffmpeg_path() -> str:
+    """Return the path to the verified local ffmpeg.exe if present, else fallback to 'ffmpeg'."""
+    local_bin = Path(__file__).resolve().parent.parent / "ffmpeg.exe"
+    if local_bin.exists():
+        return str(local_bin)
+    return "ffmpeg"
 
 
 def generate_srt(audio_path: Path, output_srt_path: Path):
@@ -106,7 +115,7 @@ def preprocess_segment(segment: Dict[str, Any], temp_dir: Path, config: Dict[str
             filt += f",{drawtext_filter}"
             
         cmd = [
-            "ffmpeg", "-y", "-loop", "1", "-i", str(img_path),
+            get_ffmpeg_path(), "-y", "-loop", "1", "-i", str(img_path),
             "-vf", filt, "-t", str(clip_duration),
             "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "fast", "-an", str(out_clip)
         ]
@@ -124,7 +133,7 @@ def preprocess_segment(segment: Dict[str, Any], temp_dir: Path, config: Dict[str
             for c in interval_clips:
                 f.write(f"file '{c.resolve()}'\n")
         subprocess.run([
-            "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_txt),
+            get_ffmpeg_path(), "-y", "-f", "concat", "-safe", "0", "-i", str(concat_txt),
             "-c", "copy", str(final_seg)
         ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         
