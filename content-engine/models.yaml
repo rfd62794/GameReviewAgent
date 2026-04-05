@@ -10,6 +10,13 @@ models:
   p3_scripting: "anthropic/claude-sonnet-4-6"
   p1_research: "deepseek/deepseek-chat"          # DeepSeek V3 via OpenRouter — Phase 2+
   fallback: "anthropic/claude-haiku-4-5-20251001"
+  p4_image_gen: "google/gemini-2.5-flash-image"
+
+# Image generation specific config
+image_config:
+  aspect_ratio_midform: "16:9"
+  aspect_ratio_short: "9:16"
+  size: "2K"
 
 # Routing mode per stage
 # direct  = call provider SDK with API key from env

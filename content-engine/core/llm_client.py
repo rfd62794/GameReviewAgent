@@ -20,6 +20,7 @@ Environment Variable: OPENROUTER_API_KEY
 import os
 import json
 import time
+import base64
 import requests
 import logging
 from datetime import datetime
@@ -148,7 +149,7 @@ class OpenRouterLLMAdapter:
         messages.append({"role": "user", "content": prompt})
 
         return self.call_with_retries(
-            model=self.model,
+            model=model,
             messages=messages,
             tools=tools,
             temperature=temperature,
@@ -158,6 +159,58 @@ class OpenRouterLLMAdapter:
             response_format=response_format,  # FIX 1: pass through
             **kwargs
         )
+
+    def generate_image(
+        self,
+        prompt: str,
+        aspect_ratio: str = "16:9",
+        image_size: str = "2K",
+        model: Optional[str] = None
+    ) -> bytes | None:
+        """
+        Specialized call for image generation via OpenRouter multimodal endpoint.
+        Returns raw bytes of the decoded PNG image.
+        """
+        model = model or self.model
+        messages = [{"role": "user", "content": prompt}]
+        
+        # We call _make_request directly for image generation to use 
+        # specific multimodal modalities and image_config.
+        try:
+            response_data = self._make_request(
+                model=model,
+                messages=messages,
+                modalities=["image", "text"],
+                image_config={
+                    "aspect_ratio": aspect_ratio,
+                    "image_size": image_size
+                }
+            )
+            
+            # OpenRouter returns images in choice.message.images
+            # Structure: choices[0].message.images[0].image_url.url (base64)
+            self._validate_response(response_data)
+            choice = response_data["choices"][0]
+            message = choice.get("message", {})
+            images = message.get("images", [])
+            
+            if not images:
+                self.logger.error("No images found in multimodal response")
+                return None
+            
+            # Extract base64 URL
+            image_url = images[0].get("image_url", {}).get("url", "")
+            if not image_url.startswith("data:image/"):
+                self.logger.error("Response is not a valid base64 image data URL")
+                return None
+            
+            # Strip prefix: data:image/png;base64,
+            base64_data = image_url.split(",")[1]
+            return base64.b64decode(base64_data)
+            
+        except Exception as e:
+            self.logger.error(f"Image generation failed: {e}")
+            return None
 
     def call_with_retries(
         self,
@@ -265,7 +318,11 @@ class OpenRouterLLMAdapter:
         if response_format is not None:
             payload["response_format"] = response_format
 
-        if tools:
+        # MODALITY FIX: Only add modalities and image_config if provided
+        if "modalities" in kwargs:
+            payload["modalities"] = kwargs.pop("modalities")
+        if "image_config" in kwargs:
+            payload["image_config"] = kwargs.pop("image_config")
             payload["tools"] = [
                 {
                     "type": "function",
@@ -332,8 +389,11 @@ class OpenRouterLLMAdapter:
         if "choices" not in response or not response["choices"]:
             raise LLMResponseError("Response missing 'choices' or choices is empty")
         choice = response["choices"][0]
-        if "message" not in choice or "content" not in choice["message"]:
-            raise LLMResponseError("Choice missing 'message' or 'content'")
+        
+        # Valid message must have content OR images (multimodal)
+        message = choice.get("message", {})
+        if "content" not in message and "images" not in message:
+            raise LLMResponseError("Choice missing 'content' and 'images'")
         # NOTE: 'usage' key checked with .get() in call_with_retries instead
         # of hard-failing here — some OpenRouter responses omit usage on
         # certain models. This avoids the brittleness flagged in audit.
