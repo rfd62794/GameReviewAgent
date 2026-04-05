@@ -4,7 +4,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ["PYTHONIOENCODING"] = "utf-8"
 
 from core.db import get_connection
-from core.asset_sourcer import _build_pollinations_prompt
+from core.prompt_builder import build_pollinations_prompt, extract_key_phrase
 
 def full_preview():
     conn = get_connection()
@@ -14,20 +14,31 @@ def full_preview():
         "SELECT * FROM asset_briefs WHERE script_id = 1 ORDER BY segment_index"
     ).fetchall()
     
-    with open("_preview_all_out.txt", "w", encoding="utf-8") as f:
+    with open("scripts/preview_all_out.txt", "w", encoding="utf-8") as f:
         f.write("=== FINAL MVP POLLINATIONS PREVIEW (ALL 15 SEGMENTS) ===\n")
         f.write(f"{'seg':<4} | {'game':<20} | {'mechanic':<25} | {'moment':<30} | {'pollinations_prompt'}\n")
-        f.write("-" * 120 + "\n")
+        f.write("-" * 140 + "\n")
         
         for seg in segments:
             idx = str(seg['segment_index'])
             game = str(seg['game_title'] or "None")[:20]
             mech = str(seg['mechanic'] or "None")[:25]
             mom = str(seg['moment'] or "None")[:30]
-            prompt = _build_pollinations_prompt(seg)
+            
+            # Re-derive prompt for comparison if needed, or use DB if p4b already ran
+            prompt = build_pollinations_prompt(
+                seg.get("game_title"), 
+                seg.get("mechanic"), 
+                seg.get("moment")
+            )
+            
             f.write(f"{idx:<4} | {game:<20} | {mech:<25} | {mom:<30} | {prompt}\n")
             
-        f.write("-" * 120 + "\n")
+            # Show drawtext/keyphrase if available
+            kp = seg.get("key_phrase") or extract_key_phrase(seg["segment_text"])
+            f.write(f"     | OVERLAY: \"{kp}\"\n")
+            
+        f.write("-" * 140 + "\n")
         f.write("=== END PREVIEW ===\n")
     conn.close()
 

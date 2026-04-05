@@ -64,7 +64,7 @@ if __name__ == "__main__":
     os.environ["SCRIPT_ID"] = "1"
     start = time.time()
     run_step("stage_p3b_segment.py")
-    run_step("stage_p4_assets.py")
+    run_step("stage_p4b_source.py")
     run_step("stage_p6_audio.py")
     run_step("stage_p7_assemble.py")
     print_summary(start)
