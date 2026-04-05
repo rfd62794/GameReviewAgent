@@ -16,7 +16,7 @@ from core.inventory_manager import increment_usage
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from core.assembler import preprocess_segment, assemble_video
+from core.assembler import preprocess_segment, assemble_video, get_ffmpeg_path
 
 def main():
     parser = argparse.ArgumentParser(description="ContentEngine P7 — Visual Assembly")
@@ -105,7 +105,7 @@ def main():
         f.write(f"file '{body_audio.resolve()}'\n")
         
     subprocess.run([
-        "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(audio_concat),
+        get_ffmpeg_path(), "-y", "-f", "concat", "-safe", "0", "-i", str(audio_concat),
         "-c", "copy", str(full_audio)
     ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
