@@ -161,17 +161,21 @@ def preprocess_segment(segment: Dict[str, Any], temp_dir: Path, config: Dict[str
         # -------------------------------------------------------------
         # Only apply text to the FIRST interval of the segment (usually the hook)
         if drawtext_filter and i == 0:
-            # We assume drawtext_filter is just the raw text for now, 
-            # let's build the actual filter string with sanitization
-            safe_text = sanitize_drawtext(drawtext_filter)
-            
-            # Implementation of a production-grade Title Slide filter
-            # Dark semi-transparent box + White text
-            filt_text = (
-                f"drawbox=y=ih*0.7:h=ih*0.2:color=black@0.6:t=fill,"
-                f"drawtext=text='{safe_text}':fontcolor=white:fontsize=64:"
-                f"x=(w-text_w)/2:y=ih*0.75+(ih*0.1-text_h)/2"
-            )
+            # Check if drawtext_filter is already a pre-built FFmpeg filter chain
+            # (e.g., starts with 'drawtext' or 'drawbox')
+            if "drawtext=" in drawtext_filter or "drawbox=" in drawtext_filter:
+                # Use it as-is, but still apply sanitize_drawtext (which now handles smart-quotes)
+                # except it shouldn't replace '=' if it's a filter.
+                # Actually, if it's a filter, it was likely correctly escaped by the extractor.
+                filt_text = drawtext_filter
+            else:
+                # It's raw text, apply the production Title Slide template
+                safe_text = sanitize_drawtext(drawtext_filter)
+                filt_text = (
+                    f"drawbox=y=ih*0.7:h=ih*0.2:color=black@0.6:t=fill,"
+                    f"drawtext=text='{safe_text}':fontcolor=white:fontsize=64:"
+                    f"x=(w-text_w)/2:y=ih*0.75+(ih*0.1-text_h)/2"
+                )
             
             cmd_text = [
                 get_ffmpeg_path(), "-y", "-i", str(kb_tmp),
