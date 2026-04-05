@@ -90,16 +90,24 @@ def main():
     conn.commit()
     conn.close()
 
+    conn = get_connection()
+    conn.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
+    final_segs = conn.execute("SELECT * FROM asset_briefs WHERE script_id = ? ORDER BY segment_index", (SCRIPT_ID,)).fetchall()
+    conn.close()
+
     print("[3/3] Segmentation Complete.")
     print("-" * 70)
-    for seg in segments:
+    for seg in final_segs:
         label = "HOOK" if seg["segment_index"] == 0 else f"BODY {seg['segment_index']}"
         print(f"Seg {seg['segment_index']} [{label}] - {seg['estimated_duration_s']}s")
-        print(f"  Type:  {seg['visual_type']}")
-        if seg["visual_type"] == "ai_image":
-            print(f"  Prompt: {seg['ai_image_prompt']}")
+        print(f"  Type:     {seg['visual_type']}")
+        print(f"  Game:     {seg['game_title']!r}")
+        print(f"  Mechanic: {seg['mechanic']!r}")
+        print(f"  Moment:   {seg['moment']!r}")
+        if seg["ai_image_prompt"]:
+            print(f"  AI Prompt: {seg['ai_image_prompt']}")
         else:
-            print(f"  Query:  {seg['search_query']}")
+            print(f"  Search:    {seg['search_query']}")
         print()
     print("=" * 70)
 

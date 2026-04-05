@@ -61,10 +61,13 @@ def preprocess_segment(segment: dict, temp_dir: Path) -> Path | None:
     # 1920x1080 format string
     filt_prefix = "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080"
 
+    # Choose processing mode based on file extension (robust for MVP fallback)
+    is_image = asset_path.suffix.lower() in [".jpg", ".jpeg", ".png"]
+    
     cmd = ["ffmpeg", "-y"]
-
-    if vtype in ["stock_still", "ai_image"]:
-        # Ken Burns + drawtext
+    
+    if is_image:
+        # Apply Ken Burns to images
         cmd.extend(["-loop", "1", "-i", str(asset_path)])
         frames = duration * 30
         kb_filter = (
