@@ -27,7 +27,7 @@ def main():
     # 1. Reset the target segments to trigger re-extraction and re-sourcing
     print(f"  [P4d] Resetting segments {REPLACE_INDICES} for re-processing...")
     conn.execute(
-        f"UPDATE asset_briefs SET mechanic = NULL, search_query = NULL, status = 'pending', selected_asset = NULL, asset_source = NULL WHERE script_id = ? AND segment_index IN ({','.join(map(str, REPLACE_INDICES))})",
+        f"UPDATE asset_briefs SET mechanic = NULL, search_query = '[]', status = 'pending', selected_asset = NULL, asset_source = NULL WHERE script_id = ? AND segment_index IN ({','.join(map(str, REPLACE_INDICES))})",
         (SCRIPT_ID,)
     )
     conn.commit()
