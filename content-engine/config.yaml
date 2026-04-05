@@ -14,7 +14,8 @@ assembly:
   youtube_candidates: 5
   youtube_clip_buffer_s: 2
   youtube_clip_enabled: true
-  youtube_clip_timeout: 15
+  
+  # Image Cycling & Grounding
   youtube_confidence_threshold: 0.8
 llm:
   routing_mode: openrouter
