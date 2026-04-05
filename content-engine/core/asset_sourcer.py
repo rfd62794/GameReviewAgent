@@ -1,4 +1,6 @@
 import os
+import re
+import yaml
 import requests
 import urllib.parse
 from pathlib import Path
@@ -17,6 +19,53 @@ from core.youtube_sourcer import source_for_segment as yt_source
 
 LOCAL_GAMEPLAY_DIR.mkdir(parents=True, exist_ok=True)
 DL_DIR.mkdir(parents=True, exist_ok=True)
+
+# --- Config flags ---
+_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.yaml"
+try:
+    with open(_CONFIG_PATH, "r", encoding="utf-8") as _f:
+        _cfg = yaml.safe_load(_f)
+    YOUTUBE_CLIP_ENABLED = _cfg.get("assembly", {}).get("youtube_clip_enabled", True)
+except Exception:
+    YOUTUBE_CLIP_ENABLED = True
+
+
+def _build_pollinations_prompt(segment: dict) -> str:
+    """Build a Pollinations art prompt from segment metadata per MVP directive."""
+    text = segment.get("segment_text", "")
+    query = segment.get("search_query", "")
+    prompt = segment.get("ai_image_prompt", "")
+
+    # Use existing ai_image_prompt if one was set during segmentation
+    if prompt:
+        return prompt
+
+    # Otherwise derive from segment text — extract game title / mechanic heuristics
+    text_lower = text.lower()
+    game = None
+    mechanic = None
+
+    if "cookie clicker" in text_lower:
+        game = "Cookie Clicker"
+    elif "adventure capitalist" in text_lower:
+        game = "AdVenture Capitalist"
+    elif query and query not in ("gaming", ""):
+        game = query.title()
+
+    # Mechanic keywords
+    for kw in ["idle", "clicker", "prestige", "ascension", "multiplier", "resource", "loop", "upgrade"]:
+        if kw in text_lower:
+            mechanic = kw
+            break
+
+    if game and mechanic:
+        return f"{game} {mechanic} moment digital art, vibrant game UI screenshot style, 4K"
+    elif game:
+        return f"{game} gameplay digital art, vibrant, high quality"
+    elif mechanic:
+        return f"{mechanic} game design concept art, vivid colors, premium illustration"
+    else:
+        return "video game design concept art, vivid digital illustration, high quality, dark mode"
 
 
 def download_file(url: str, output_path: Path) -> Path:
@@ -109,34 +158,54 @@ def generate_pollinations_image(prompt: str, segment_id: int) -> str | None:
 def source_asset_for_segment(segment: dict) -> dict:
     """
     Take an asset_brief segment and return the path and source of the best asset.
-    Implements P4 and P4b selection logic.
+
+    MVP mode (youtube_clip_enabled: false):
+      Every segment → Pollinations AI still with a game-context prompt.
+      No YouTube calls. No Wikimedia calls.
+
+    Full mode (youtube_clip_enabled: true):
+      Standard priority chain: local → YouTube → Wikimedia → Pexels → Pollinations.
     """
     vtype = segment["visual_type"]
-    query = segment["search_query"]
-    prompt = segment["ai_image_prompt"]
-    req_dur = segment["estimated_duration_s"]
+    query = segment.get("search_query", "")
     seg_id = segment["id"]
 
-    # 1. Gameplay Clip & Stock Clip priority (now both use YouTube heavily)
+    # ── MVP MODE: Pollinations-only ──────────────────────────────────────────
+    if not YOUTUBE_CLIP_ENABLED:
+        poll_prompt = _build_pollinations_prompt(segment)
+        print(f"  [MVP] Pollinations prompt → {poll_prompt}")
+        ai = generate_pollinations_image(poll_prompt, seg_id)
+        if ai:
+            return {"path": ai, "source": "ai_image"}
+        return {"path": None, "source": None}
+
+    # ── FULL MODE ────────────────────────────────────────────────────────────
+    prompt = segment.get("ai_image_prompt", "")
+
+    # 1. Gameplay Clip & Stock Clip — YouTube primary
     if vtype in ["gameplay_clip", "stock_clip"]:
         local = check_local_gameplay(query)
-        if local: return {"path": local, "source": "local"}
-        
+        if local:
+            return {"path": local, "source": "local"}
+
         yt_res = yt_source(segment)
-        if yt_res: 
+        if yt_res:
             return {"path": yt_res["path"], "source": yt_res["source"]}
-            
+
         wiki = search_wikimedia(query, seg_id)
-        if wiki: return {"path": wiki, "source": "wikimedia"}
-        
-    # 2. Stock Image priority
+        if wiki:
+            return {"path": wiki, "source": "wikimedia"}
+
+    # 2. Stock Image — Pexels
     if vtype == "stock_still":
         pex_img = search_pexels_image(query, seg_id)
-        if pex_img: return {"path": pex_img, "source": "pexels"}
-        
-    # 3. AI Image priority or strict fallback wrapper
-    if vtype == "ai_image" or True: # Fallback applies to everything if above fails
-        ai = generate_pollinations_image(prompt or f"Abstract representation of {query}, high quality, clean", seg_id)
-        if ai: return {"path": ai, "source": "ai_generated"}
-        
+        if pex_img:
+            return {"path": pex_img, "source": "pexels"}
+
+    # 3. AI Image / universal fallback
+    poll_prompt = _build_pollinations_prompt(segment) if not prompt else prompt
+    ai = generate_pollinations_image(poll_prompt, seg_id)
+    if ai:
+        return {"path": ai, "source": "ai_image"}
+
     return {"path": None, "source": None}
