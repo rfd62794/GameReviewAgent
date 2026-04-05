@@ -132,7 +132,10 @@ def _make_fallback_frame(segment_id: int) -> str:
         return None
 
 
-def generate_ai_image(prompt: str, segment_id: int, game_title: Optional[str] = None, mechanic: Optional[str] = None) -> Dict[str, Any] | None:
+from core.db import get_connection
+from core.prompt_engineer import generate_visual_prompt
+
+def generate_ai_image(prompt: str, segment_id: int, game_title: Optional[str] = None, mechanic: Optional[str] = None, moment: Optional[str] = None) -> Dict[str, Any] | None:
     """Generate image(s) using OpenRouter multimodal models. Supports grounding references."""
     # Load config
     model = "google/gemini-2.5-flash-image"
@@ -149,7 +152,28 @@ def generate_ai_image(prompt: str, segment_id: int, game_title: Optional[str] = 
     except:
         pass
 
-    # 1. Grounding Reference (Mechanic-aware)
+    # 1. Fetch style_notes for grounding (if game provided)
+    style_notes = None
+    if game_title:
+        conn = get_connection()
+        try:
+            row = conn.execute(
+                "SELECT style_notes FROM game_clip_index WHERE game_title = ? LIMIT 1", 
+                (game_title,)
+            ).fetchone()
+            if row:
+                style_notes = row["style_notes"]
+        finally:
+            conn.close()
+
+    # 2. Prompt Engineering Stage (DeepSeek)
+    if game_title and mechanic and moment:
+        optimized_prompt = generate_visual_prompt(game_title, mechanic, moment, style_notes)
+        print(f"    [Prompt Engineer] Optimized: {optimized_prompt[:80]}...")
+    else:
+        optimized_prompt = prompt
+
+    # 3. Grounding Reference (Mechanic-aware)
     ref_bytes = None
     if game_title and refs_enabled:
         ref_bytes = get_reference(game_title, mechanic)
@@ -159,23 +183,18 @@ def generate_ai_image(prompt: str, segment_id: int, game_title: Optional[str] = 
         else:
             print(f"    [OpenRouter AI] No reference found for {msg_context} — using text-only")
 
-    # 2. Multi-variant generation (if cycling enabled)
+    # 4. Multi-variant generation (if cycling enabled)
     # We use segment_id + index for unique naming
     paths = []
     client = create_llm_client(model=model)
     
-    # Simple heuristic to determine variant count if prompt given is base
-    # In full pipeline, P4b will pass the prompt. 
-    # If we need variants, we use build_variant_prompts.
-    # For now, we take the provided prompt and generate N versions.
-    prompts = [prompt]
+    # Simple heuristic to determine variant count
+    prompts = [optimized_prompt]
     if variant_count > 1:
-        # Note: We don't have mechanic/moment here easily, so we just
-        # append compositional modifiers to the base prompt directly.
         modifiers = ["close-up detail", "wide shot", "dramatic angle"]
         for i in range(1, variant_count):
             mod = modifiers[i % len(modifiers)]
-            prompts.append(f"{prompt}, {mod}")
+            prompts.append(f"{optimized_prompt}, {mod}")
 
     for i, p in enumerate(prompts):
         suffix = f"_v{i}" if variant_count > 1 else ""
