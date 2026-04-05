@@ -125,20 +125,31 @@ def preprocess_segment(segment: Dict[str, Any], temp_dir: Path, config: Dict[str
             lb = "if(lte(zoom,1.0),1.5,max(1.001,zoom-0.0015))"
 
         # -------------------------------------------------------------
-        # PASS 1: Ken Burns (Zoompan) only
+        # PASS 1: Visual Base (Zoompan for Images, Trim for Video)
         # -------------------------------------------------------------
         kb_tmp = temp_dir / f"seg_{idx}_part_{i}_kb.mp4"
+        is_video = img_path.suffix.lower() in [".mp4", ".mov", ".mkv", ".avi", ".webm"]
         
-        filt_kb = (
-            f"scale=1920:1080,zoompan=z='{lb}':d={frames}:"
-            f"x='round(iw/2-(iw/zoom/2)+({pan_x}*iw))':y='round(ih/2-(ih/zoom/2)+({pan_y}*ih))':s=1920x1080"
-        )
-        
-        cmd_kb = [
-            get_ffmpeg_path(), "-y", "-framerate", "30", "-loop", "1", "-i", str(img_path),
-            "-vf", filt_kb, "-t", str(clip_duration),
-            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "fast", "-an", str(kb_tmp)
-        ]
+        if is_video:
+            # For video, just trim and scale
+            # We use setpts=PTS-STARTPTS to ensure the trimmed clip starts at 0
+            filt_v = f"scale=1920:1080,setpts=PTS-STARTPTS"
+            cmd_kb = [
+                get_ffmpeg_path(), "-y", "-i", str(img_path),
+                "-vf", filt_v, "-t", str(clip_duration),
+                "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "fast", "-an", str(kb_tmp)
+            ]
+        else:
+            # For image, apply Ken Burns (Zoompan)
+            filt_kb = (
+                f"scale=1920:1080,zoompan=z='{lb}':d={frames}:"
+                f"x='round(iw/2-(iw/zoom/2)+({pan_x}*iw))':y='round(ih/2-(ih/zoom/2)+({pan_y}*ih))':s=1920x1080"
+            )
+            cmd_kb = [
+                get_ffmpeg_path(), "-y", "-framerate", "30", "-loop", "1", "-i", str(img_path),
+                "-vf", filt_kb, "-t", str(clip_duration),
+                "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "fast", "-an", str(kb_tmp)
+            ]
         
         result_kb = subprocess.run(cmd_kb, capture_output=True, text=True)
         if result_kb.returncode != 0:
