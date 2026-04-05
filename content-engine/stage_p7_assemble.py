@@ -54,7 +54,8 @@ def main():
         label = "HOOK" if seg["segment_index"] == 0 else f"BODY {seg['segment_index']}"
         print(f"  > Processing {label} ({seg['estimated_duration_s']}s) ... ", end="", flush=True)
         
-        out_file = preprocess_segment(seg, temp_dir)
+        drawtext_filter = seg.get("drawtext_string", "")
+        out_file = preprocess_segment(seg, temp_dir, drawtext_filter)
         if out_file:
             print("✓")
             seg["temp_file"] = out_file
