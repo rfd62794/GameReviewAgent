@@ -23,6 +23,10 @@ assembly:
   image_cycling_mode: "ken_burns"    # "ken_burns" or "variants"
   image_cycling_interval_s: 12
   image_variant_count: 2
+  
+  # Subtitles
+  subtitles_enabled: true
+  subtitle_mode: "srt"              # "srt", "burn", or "both"
 
 ytdlp_extra_flags:
   - "--remote-components"
