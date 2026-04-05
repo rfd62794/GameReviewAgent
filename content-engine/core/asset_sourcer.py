@@ -33,9 +33,11 @@ except Exception:
 
 YOUTUBE_CLIP_ENABLED = CONFIG.get("youtube_clip_enabled", True)
 
+import core.wiki_sourcer as wiki
 from core.youtube_sourcer import source_for_segment as yt_source
-from core.llm_client import create_llm_client
 from core.db import get_connection
+from core.inventory_manager import check_inventory
+from core.llm_client import create_llm_client
 from core.prompt_builder import (
     build_pollinations_prompt, 
     build_infographic_prompt
@@ -250,6 +252,18 @@ def source_asset_for_segment(segment: dict) -> dict:
     seg_idx = segment.get("segment_index", "?")
     
     print(f"\n--- ROUTING SEGMENT {seg_idx} | game={game_title or '[Abstract]'} ---")
+
+    # 0. INVENTORY MATCH (Priority 0)
+    # Check if we already have a verified asset for this game+mechanic
+    inv_match = check_inventory(game_title, mechanic)
+    if inv_match:
+        print(f"  [ROUTING] INVENTORY MATCH: {Path(inv_match['asset_path']).name}")
+        print(f"            Description: {inv_match.get('visual_description', 'No description')[:60]}...")
+        return {
+            "path": inv_match["asset_path"], 
+            "source": inv_match["source"], 
+            "paths": [inv_match["asset_path"]]
+        }
 
     # 1. GAME-SPECIFIC CHAIN
     if game_title:
