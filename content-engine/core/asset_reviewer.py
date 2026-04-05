@@ -26,10 +26,10 @@ Respond with JSON only:
   "reason": "max 80 chars"
 }"""
 
-def extract_review_frame(asset_path: str) -> Optional[str]:
+def extract_review_frame(asset_path: str, offset_pct: float = 0.5) -> Optional[str]:
     """
     Extract a representative frame from a video or use the image path directly.
-    For videos, extracts at 50% duration.
+    For videos, extracts at offset_pct of duration (default 50%).
     """
     path = Path(asset_path)
     if not path.exists():
@@ -54,9 +54,9 @@ def extract_review_frame(asset_path: str) -> Optional[str]:
                 h, m, s = float(match.group(1)), float(match.group(2)), float(match.group(3))
                 duration = h * 3600 + m * 60 + s
             
-            # 2. Extract frame at 50%
-            timestamp = duration * 0.5
-            out_name = f"review_{path.stem}.jpg"
+            # 2. Extract frame at offset_pct
+            timestamp = duration * offset_pct
+            out_name = f"review_{path.stem}_at_{int(offset_pct*100)}.jpg"
             out_path = TEMP_DIR / out_name
             
             cmd_extract = [
@@ -75,7 +75,7 @@ def extract_review_frame(asset_path: str) -> Optional[str]:
             
     return None
 
-def evaluate_asset(segment: dict) -> dict:
+def evaluate_asset(segment: dict, offset_pct: float = 0.5) -> dict:
     """
     Evaluate the asset for a given segment using Gemini Vision.
     Returns: {"decision": "ACCEPT"|... , "reason": "...", "confidence": 0.0}
@@ -84,7 +84,7 @@ def evaluate_asset(segment: dict) -> dict:
     if not asset_path:
         return {"decision": "SKIP", "reason": "No asset found", "confidence": 1.0}
 
-    frame_path = extract_review_frame(asset_path)
+    frame_path = extract_review_frame(asset_path, offset_pct=offset_pct)
     if not frame_path:
         return {"decision": "SKIP", "reason": "Could not extract frame", "confidence": 1.0}
 
