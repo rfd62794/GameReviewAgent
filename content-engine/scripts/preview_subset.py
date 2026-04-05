@@ -1,5 +1,6 @@
 import sys, os
-sys.path.insert(0, ".")
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ["PYTHONIOENCODING"] = "utf-8"
 
 from core.db import get_connection
@@ -9,7 +10,7 @@ def preview(indices):
     conn = get_connection()
     conn.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
     
-    with open("_preview_subset_out.txt", "w", encoding="utf-8") as f:
+    with open("scripts/preview_subset_out.txt", "w", encoding="utf-8") as f:
         f.write("=== MICRO-VERIFICATION PREVIEW ===\n")
         for idx in indices:
             seg = conn.execute(

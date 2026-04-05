@@ -1,7 +1,8 @@
 import sys, os
-sys.path.insert(0, ".")
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ["PYTHONIOENCODING"] = "utf-8"
-OUT = open("_preview_seg0_out.txt", "w", encoding="utf-8")
+OUT = open("scripts/preview_segment_out.txt", "w", encoding="utf-8")
 def pr(s=""): OUT.write(s + "\n"); print(s)
 
 from core.db import get_connection
@@ -41,4 +42,4 @@ pr(f"3. ESTIMATED DURATION: {seg['estimated_duration_s']}s")
 pr()
 pr("=== END PREVIEW ===")
 OUT.close()
-print("\n[written to _preview_seg0_out.txt]")
+print("\n[written to scripts/preview_segment_out.txt]")
