@@ -237,30 +237,47 @@ def source_for_segment(segment: dict) -> dict | None:
     if not segment_text:
         return None
 
-    # a) Call mechanic_extractor
-    extracted = extract_mechanic(segment_text)
-    games = extracted.get("games", [])
-    mechanic = extracted.get("mechanic", "unknown")
+    # a) Use pre-extracted queries from DB first
+    # This prevents redundant LLM calls and stochastic drift
+    raw = segment.get("search_query", "")
+    queries = []
+    if raw:
+        try:
+            queries = json.loads(raw)
+            if not isinstance(queries, list):
+                queries = [str(queries)]
+        except (json.JSONDecodeError, TypeError):
+            queries = [raw] if raw else []
     
-    # Base queries from the LLM extractor
-    base_queries = extracted.get("search_queries", [])
-    if not base_queries:
-        # Fallback if extraction totally failed
-        fallback_query = segment.get("youtube_search_query", segment.get("search_query", "idle game gameplay"))
-        base_queries = [fallback_query]
+    # b) Only call extractor if DB has no queries
+    if not queries:
+        extracted = extract_mechanic(segment_text)
+        queries = extracted.get("search_queries", [])
+    
+    # Deduplicate preserving order
+    seen = set()
+    base_queries = []
+    for q in queries:
+        if q and q not in seen:
+            base_queries.append(q)
+            seen.add(q)
 
-    # b) Index Lookup
+    # c) Index Lookup (Supplementary)
+    games = segment.get("game_title", "")
+    if isinstance(games, str): games = [games]
+    mechanic = segment.get("mechanic", "unknown")
+    
     search_queries = []
     for game in games:
+        if not game: continue
         indexed_queries = lookup(game, mechanic)
         for iq in indexed_queries:
-            if iq not in search_queries:
+            if iq and iq not in seen:
                 search_queries.append(iq)
+                seen.add(iq)
     
-    # Append the newly generated LLM base queries
-    for bq in base_queries:
-        if bq not in search_queries:
-            search_queries.append(bq)
+    # Prepend the high-fidelity base queries
+    search_queries = base_queries + search_queries
             
     # Short circuit check
     if not search_queries:
