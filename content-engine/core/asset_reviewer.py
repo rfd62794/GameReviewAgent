@@ -95,19 +95,44 @@ def evaluate_asset(segment: dict, offset_pct: float = 0.5) -> dict:
     except Exception as e:
         return {"decision": "SKIP", "reason": f"B64 encode failed: {e}", "confidence": 1.0}
 
-    # Build prompt
+    # Build source-aware prompt context
+    source = segment.get("asset_source", "unknown")
+    game = segment.get("game_title")
+    is_abstract = game is None
+    
     prompt = (
         f"SEGMENT TEXT: {segment.get('segment_text')}\n"
-        f"GAME: {segment.get('game_title') or 'abstract concept'}\n"
+        f"GAME: {game or '[Abstract Concept]'}\n"
         f"MECHANIC: {segment.get('mechanic')}\n"
-        f"VISUAL MOMENT: {segment.get('moment')}\n\n"
-        "Evaluate whether this asset appropriately illustrates the segment. Consider:\n"
-        "1. Is the correct game visible? (if game-specific)\n"
-        "2. Does it show the mechanic described?\n"
-        "3. Is it visually clear and high quality?\n"
-        "4. Is it suitable for a professional YouTube video?\n\n"
-        "CRITICAL CONSTRAINT: If the video shows hands on a controller, a person's face, or "
-        "physically blocks the game UI — always return REPLACE regardless of other factors."
+        f"VISUAL MOMENT: {segment.get('moment')}\n"
+        f"ASSET SOURCE: {source}\n\n"
+        "### REVIEW CRITERIA (Source-Aware):\n"
+    )
+    
+    if is_abstract and source == "ai_generated":
+        prompt += (
+            "1. THIS IS AN ABSTRACT CONCEPT SEGMENT with an AI-generated infographic.\n"
+            "2. ACCEPT if the image is visually professional, high quality, and generally relevant.\n"
+            "3. NEVER reject ('REPLACE') for being 'too generic' or 'metaphorical'.\n"
+            "4. Only REPLACE if the image is corrupted, blank, or completely nonsensical.\n"
+        )
+    elif not is_abstract and source == "ai_generated":
+        prompt += (
+            "1. THIS IS A GAME-SPECIFIC SEGMENT using an AI fallback (no real footage was found).\n"
+            "2. This is a CONCEPTUAL ILLUSTRATION, not a literal screenshot.\n"
+            "3. ACCEPT if it illustrates the mechanic or moment effectively.\n"
+            "4. DO NOT reject for failing to look exactly like the UI of the specified game.\n"
+        )
+    else:
+        prompt += (
+            "1. THIS IS A REAL ASSET (YouTube/Wiki/Local).\n"
+            "2. Check for exact game matching, mechanic accuracy, and professional quality.\n"
+            "3. APPLY STRICT STANDARDS for franchise accuracy.\n"
+        )
+
+    prompt += (
+        "\nCRITICAL CONSTRAINT: If the video/image shows human hands on a controller, "
+        "a person's face, or physically blocks the game UI — always return REPLACE."
     )
 
     client = create_llm_client(model="google/gemini-2.5-flash")
