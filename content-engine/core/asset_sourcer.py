@@ -32,32 +32,26 @@ except Exception:
 
 def _build_pollinations_prompt(segment: dict) -> str:
     """
-    Build a Pollinations art prompt from mechanic extractor output stored in asset_briefs.
-
-    Priority:
-      1. ai_image_prompt — set by segmentation for 'ai_image' type segments
-      2. game_title + moment from extractor → "{game} {moment} digital art, ..."
-      3. mechanic only → "{mechanic} game mechanic concept art, ..."
-      4. generic fallback
+    Build a Pollinations art prompt from mechanic extractor output.
+    
+    MVP Logic:
+      - If game_title: "{game_title} {moment} digital art, vibrant game UI screenshot style, 4K"
+      - If game_title None: "{mechanic} {moment} concept art, dark mode digital illustration, 4K"
     """
-    # 1. Use ai_image_prompt if segmentation already craft one
+    # 1. Use ai_image_prompt if segmentation already crafted one (e.g. abstract/infographic)
     existing = segment.get("ai_image_prompt")
     if existing:
         return existing
 
-    # 2. Read extractor output columns directly
-    game_title = segment.get("game_title")  # e.g. "Cookie Clicker"
-    mechanic   = segment.get("mechanic")    # e.g. "prestige"
-    moment     = segment.get("moment")      # e.g. "ascension button press"
+    # 2. Read extractor output columns
+    game_title = segment.get("game_title")
+    mechanic   = segment.get("mechanic")
+    moment     = segment.get("moment") or "gameplay scene"
 
-    if game_title and moment:
+    if game_title:
         return f"{game_title} {moment} digital art, vibrant game UI screenshot style, 4K"
-    elif game_title and mechanic:
-        return f"{game_title} {mechanic} moment digital art, vibrant game UI screenshot style, 4K"
-    elif game_title:
-        return f"{game_title} gameplay digital art, vibrant, high quality, 4K"
     elif mechanic:
-        return f"{mechanic} game mechanic concept art, vivid digital illustration, 4K"
+        return f"{mechanic} {moment} concept art, dark mode digital illustration, 4K"
     else:
         return "video game design concept art, vivid digital illustration, high quality, dark mode"
 
