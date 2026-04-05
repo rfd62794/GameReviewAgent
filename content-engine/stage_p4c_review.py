@@ -84,8 +84,11 @@ def main():
     if not replaces:
         print(f"  None.")
     for r in replaces:
-        conf = r.get("confidence") or 0.0
-        print(f"  seg {r['segment_index']:<2} | {r['game_title']:<20} | {r['reason']:<40} | conf: {conf:.2f}")
+        seg_idx = r.get("segment_index") if r.get("segment_index") is not None else "?"
+        game = r.get("game_title") or "N/A"
+        reason = r.get("reason") or "No reason provided"
+        conf = r.get("confidence") if isinstance(r.get("confidence"), (int, float)) else 0.0
+        print(f"  seg {str(seg_idx):<2} | {str(game):<20} | {str(reason):<40} | conf: {conf:.2f}")
         
     print(f"\n  Total review time: {duration:.1f}s")
     print(f"----------------------------------------------------------------------")
@@ -104,9 +107,12 @@ def main():
         f.write("| :--- | :--- | :--- | :--- | :--- | :--- |\n")
         
         for r in results:
-            conf = r.get("confidence") or 0.0
+            seg_idx = r.get("segment_index") if r.get("segment_index") is not None else "?"
+            game = r.get("game_title") or "N/A"
+            reason = r.get("reason") or "No reason provided"
+            conf = r.get("confidence") if isinstance(r.get("confidence"), (int, float)) else 0.0
             asset_link = f"[Link](file:///{r['asset_path'].replace('\\', '/')})"
-            f.write(f"| {r['segment_index']} | {r['game_title']} | **{r['decision']}** | {conf:.2f} | {r['reason']} | {asset_link} |\n")
+            f.write(f"| {seg_idx} | {game} | **{r['decision']}** | {conf:.2f} | {reason} | {asset_link} |\n")
 
     print(f"✓ Summary report saved to: {report_path}")
     conn.close()
