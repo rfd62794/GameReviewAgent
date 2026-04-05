@@ -10,10 +10,13 @@ import stage_p4_extract
 
 class TestStageP4Extract(unittest.TestCase):
     def setUp(self):
-        # Fresh script_id per test run is better, but here we reuse 1 for simplicity
-        # We also need a clean asset_briefs entry
         self.conn = get_connection()
         self.conn.execute("DELETE FROM asset_briefs WHERE script_id = 999")
+        self.conn.execute("DELETE FROM scripts WHERE id = 999")
+        self.conn.execute(
+            "INSERT INTO scripts (id, topic_id, hook_short_script, mid_form_body, word_count_hook, word_count_body, estimated_duration_s) "
+            "VALUES (999, 1, 'hook', 'body', 1, 1, 1)"
+        )
         self.conn.execute(
             "INSERT INTO asset_briefs (script_id, segment_index, segment_text, estimated_duration_s, visual_type, search_query) "
             "VALUES (999, 0, 'Test segment text', 5, 'stock_clip', '')"
@@ -23,6 +26,7 @@ class TestStageP4Extract(unittest.TestCase):
 
     def tearDown(self):
         self.conn.execute("DELETE FROM asset_briefs WHERE script_id = 999")
+        self.conn.execute("DELETE FROM scripts WHERE id = 999")
         self.conn.commit()
         self.conn.close()
 
