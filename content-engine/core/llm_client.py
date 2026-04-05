@@ -175,8 +175,23 @@ class OpenRouterLLMAdapter:
         model = model or self.model
         
         if reference_bytes:
-            # Multimodal payload
+            # Multimodal payload with refined instruction contract
             b64_img = base64.b64encode(reference_bytes).decode()
+            
+            # System-style structured instruction
+            instruction = (
+                f"SYSTEM: You are generating a scene from a video game.\n\n"
+                f"REFERENCE IMAGE: Analyze this actual gameplay screenshot. Study:\n"
+                f"- Color palette and lighting style\n"
+                f"- UI element aesthetic (borders, fonts, icons)\n"
+                f"- Overall visual tone and mood\n"
+                f"- Art style (pixel art / cartoon / realistic)\n\n"
+                f"DO NOT recreate the reference image. DO NOT copy the exact scene.\n\n"
+                f"GENERATE: A NEW scene based on this visual language:\n"
+                f"{prompt}\n\n"
+                f"Maintain the visual style and art direction of the reference."
+            )
+            
             messages = [{
                 "role": "user",
                 "content": [
@@ -186,7 +201,7 @@ class OpenRouterLLMAdapter:
                     },
                     {
                         "type": "text",
-                        "text": f"Use this screenshot as a visual style reference for the game shown. Generate: {prompt}"
+                        "text": instruction
                     }
                 ]
             }]
