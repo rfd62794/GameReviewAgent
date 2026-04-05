@@ -4,6 +4,9 @@ import json
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from dotenv import load_dotenv
+load_dotenv()
+
 # Extract the logic to just see what the query would be
 from core.mechanic_extractor import extract as extract_mechanic
 
