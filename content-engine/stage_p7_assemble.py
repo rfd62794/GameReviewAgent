@@ -17,6 +17,8 @@ from core.assembler import preprocess_segment, assemble_video
 
 SCRIPT_ID = 1
 
+import yaml
+
 def main():
     print("=" * 70)
     print("ContentEngine P7 — FFmpeg Assembly")
@@ -28,7 +30,13 @@ def main():
     temp_dir = engine_root / "temp"
     output_dir = engine_root / "output"
     audio_dir = engine_root / "audio"
+    config_path = engine_root / "config.yaml"
     
+    # Load config
+    with open(config_path, "r", encoding="utf-8") as f:
+        config_full = yaml.safe_load(f)
+        config = config_full.get("assembly", {})
+
     # Cleanup temp
     if temp_dir.exists(): shutil.rmtree(temp_dir)
     temp_dir.mkdir(parents=True)
@@ -52,16 +60,15 @@ def main():
     
     for seg in segments:
         label = "HOOK" if seg["segment_index"] == 0 else f"BODY {seg['segment_index']}"
-        print(f"  > Processing {label} ({seg['estimated_duration_s']}s) ... ", end="", flush=True)
+        print(f"  > Processing {label} ({seg['estimated_duration_s']}s) ... ", flush=True)
         
-        drawtext_filter = seg.get("drawtext_string", "")
-        out_file = preprocess_segment(seg, temp_dir, drawtext_filter)
+        out_file = preprocess_segment(seg, temp_dir, config)
         if out_file:
-            print("✓")
+            print(f"      ✓ {out_file.name}")
             seg["temp_file"] = out_file
             proc_segments.append(seg)
         else:
-            print("✗ FAILED")
+            print("      ✗ FAILED")
             sys.exit(1)
 
     print("\n[2/3] Preparing audio track...")
@@ -84,9 +91,12 @@ def main():
 
     print("\n[3/3] Assembling final video...")
     output_video = output_dir / f"video_{SCRIPT_ID}.mp4"
-    assemble_video(proc_segments, full_audio, output_video, temp_dir)
+    assemble_video(proc_segments, full_audio, output_video, temp_dir, config)
     
     print(f"      ✓ Assembled: {output_video.name}")
+    if (output_dir / f"video_{SCRIPT_ID}.srt").exists():
+        print(f"      ✓ Subtitles: video_{SCRIPT_ID}.srt")
+        
     print("\n" + "=" * 70)
     print("ASSEMBLY COMPLETE")
     print(f"Output: {output_video}")
