@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 import json
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.db import get_connection
 from core.youtube_sourcer import (
