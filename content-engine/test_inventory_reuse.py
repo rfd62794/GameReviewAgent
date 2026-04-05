@@ -14,18 +14,18 @@ def test_reuse():
     print()
 
     # Define a segment that matches our recently accepted Cookie Clicker prestige asset
-    # (Based on our Script 1 run, Segment 6 was Cookie Clicker/prestige_reset)
+    # (Based on our Script 1 run, Segment 6 was Cookie Clicker/ascension_reset)
     dummy_segment = {
         "id": 999,
         "segment_index": 0,
         "game_title": "Cookie Clicker",
-        "mechanic": "prestige_reset",
+        "mechanic": "ascension_reset",
         "moment": "prestige button press",
         "segment_text": "And that is when you hit the legacy button and start over."
     }
 
     print("[1/2] Testing direct check_inventory()...")
-    match = check_inventory("Cookie Clicker", "prestige_reset")
+    match = check_inventory("Cookie Clicker", "ascension_reset")
     if match:
         print(f"  ✓ SUCCESS: Found asset in inventory!")
         print(f"    Path: {match['asset_path']}")
