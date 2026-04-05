@@ -287,7 +287,10 @@ def source_for_segment(segment: dict) -> dict | None:
     print(f"\n================ SEGMENT {segment.get('segment_index', '?')} ================")
     words = segment_text.split()
     print(f"TEXT: {' '.join(words[:20])}...")
-    print(f"EXTRACTOR: Game: {games} | Mechanic: {mechanic} | Moment: {extracted.get('moment')}")
+    moment = segment.get("moment")
+    if not moment and 'extracted' in locals():
+        moment = extracted.get("moment")
+    print(f"EXTRACTOR: Game: {games} | Mechanic: {mechanic} | Moment: {moment}")
     print(f"QUERIES: {search_queries[:2]}")
 
     # We evaluate sequentially across top queries until a hit.
