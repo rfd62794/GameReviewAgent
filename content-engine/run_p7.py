@@ -82,7 +82,7 @@ def main():
     print("      ✓ Audio concatenated")
 
     print("\n[3/3] Assembling final video...")
-    output_video = output_dir / f"video_{SCRIPT_ID}_mid_form.mp4"
+    output_video = output_dir / f"video_{SCRIPT_ID}.mp4"
     assemble_video(proc_segments, full_audio, output_video, temp_dir)
     
     print(f"      ✓ Assembled: {output_video.name}")
