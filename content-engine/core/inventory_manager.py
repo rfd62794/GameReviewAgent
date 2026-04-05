@@ -24,6 +24,15 @@ def add_asset(segment_data: dict, review_data: dict, visual_description: str = "
         ext = Path(asset_path).suffix.lower()
         asset_type = "clip" if ext == ".mp4" else "image"
         
+        # Map decision to allowed database statuses
+        decision_raw = review_data.get("decision", "pending").upper()
+        if decision_raw == "ACCEPT":
+            status = "accepted"
+        elif decision_raw in ["REPLACE", "SKIP"]:
+            status = "rejected"
+        else:
+            status = "pending"
+            
         # Use segment and review data to populate
         conn.execute("""
         INSERT OR REPLACE INTO asset_inventory (
@@ -38,7 +47,7 @@ def add_asset(segment_data: dict, review_data: dict, visual_description: str = "
             segment_data.get("game_title"),
             segment_data.get("mechanic"),
             segment_data.get("moment"),
-            review_data.get("decision", "pending").lower(),
+            status,
             review_data.get("confidence", 0.0),
             review_data.get("reason"),
             visual_description,
