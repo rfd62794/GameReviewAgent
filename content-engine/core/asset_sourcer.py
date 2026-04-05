@@ -225,7 +225,10 @@ def source_asset_for_segment(segment: dict) -> dict:
             return {"path": ai, "source": "ai_generated"}
         return {"path": None, "source": None}
 
-    # ── FULL MODE ────────────────────────────────────────────────────────────
+    # ── FULL MODE (Skip if YouTube disabled) ─────────────────────────────────
+    if not YOUTUBE_CLIP_ENABLED:
+        return {"path": None, "source": None}
+
     prompt = segment.get("ai_image_prompt", "")
 
     # 1. Gameplay Clip & Stock Clip — YouTube primary
