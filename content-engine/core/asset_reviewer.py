@@ -158,4 +158,38 @@ def evaluate_asset(segment: dict, offset_pct: float = 0.5) -> dict:
         logger.error(f"Vision evaluation failed for segment {segment.get('segment_index')}: {e}")
         return {"decision": "SKIP", "reason": f"Evaluation error: {e}", "confidence": 0.0}
 
-import re # added back after being missed in manual typing
+def generate_visual_description(asset_path: str) -> str:
+    """
+    Generate a plain-English visual description of the asset for semantic search.
+    """
+    frame_path = extract_review_frame(asset_path, offset_pct=0.5)
+    if not frame_path:
+        return "No visual data available."
+
+    try:
+        with open(frame_path, "rb") as f:
+            b64_img = base64.b64encode(f.read()).decode("utf-8")
+    except Exception as e:
+        return f"Failed to encode image: {e}"
+
+    prompt = (
+        "Describe this video game screenshot/clip in plain English for a search index. "
+        "Focus on: \n"
+        "1. Specific UI elements and text visible.\n"
+        "2. Key game characters or objects.\n"
+        "3. Overall color palette and lighting.\n"
+        "4. The specific action or mechanic being demonstrated.\n\n"
+        "Format: A concise, descriptive sentence or two. Do not use conversational text."
+    )
+
+    client = create_llm_client(model="google/gemini-2.5-flash")
+    try:
+        res = client.generate_vision(
+            prompt=prompt,
+            b64_img=b64_img,
+            system_prompt="You are a professional game asset cataloger."
+        )
+        return res.get("text", "Description unavailable.").strip()
+    except Exception as e:
+        logger.error(f"Visual description generation failed: {e}")
+        return "Failed to generate description."
