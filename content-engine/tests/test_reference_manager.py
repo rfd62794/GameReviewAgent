@@ -37,15 +37,18 @@ class TestReferenceManager(unittest.TestCase):
         mock_conn = MagicMock()
         mock_conn_fn.return_value = mock_conn
         
-        # 1. Mock No Mechanic Match, then General Match
+        # 1. Mock No Mechanic Match in DB, then General Match in DB
         mock_cursor = MagicMock()
         mock_conn.execute.return_value = mock_cursor
         mock_cursor.fetchone.side_effect = [
-            None, # Mechanic specific
-            {"reference_image_path": "fake/path/general.png"} # General
+            None, # Mechanic specific DB check fails
+            {"reference_image_path": "fake/path/general.png"} # General DB check hits
         ]
         
-        # Mock Path behaviors
+        # 2. Mock mechanic acquisition failing (to trigger fallback)
+        mock_acquire.return_value = None
+        
+        # Mock Path behaviors for general match
         mock_instance = mock_path_class.return_value
         mock_instance.exists.return_value = True
         mock_instance.read_bytes.return_value = b"general_bytes"
