@@ -56,6 +56,9 @@ CREATE TABLE IF NOT EXISTS asset_briefs (
     visual_type     TEXT    NOT NULL CHECK (visual_type IN ('gameplay_clip', 'stock_still', 'stock_clip', 'ai_image')),
     search_query    TEXT    NOT NULL,
     ai_image_prompt TEXT,
+    game_title      TEXT,   -- from mechanic_extractor games[0]
+    mechanic        TEXT,   -- from mechanic_extractor
+    moment          TEXT,   -- from mechanic_extractor
     selected_asset  TEXT,
     asset_source    TEXT    CHECK (asset_source IN ('pexels', 'wikimedia', 'local', 'ai_generated', NULL)),
     status          TEXT    NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sourced', 'approved'))
