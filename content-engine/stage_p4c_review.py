@@ -84,7 +84,8 @@ def main():
     if not replaces:
         print(f"  None.")
     for r in replaces:
-        print(f"  seg {r['segment_index']:<2} | {r['game_title']:<20} | {r['reason']:<40} | conf: {r['confidence']:.2f}")
+        conf = r.get("confidence") or 0.0
+        print(f"  seg {r['segment_index']:<2} | {r['game_title']:<20} | {r['reason']:<40} | conf: {conf:.2f}")
         
     print(f"\n  Total review time: {duration:.1f}s")
     print(f"----------------------------------------------------------------------")
@@ -103,8 +104,9 @@ def main():
         f.write("| :--- | :--- | :--- | :--- | :--- | :--- |\n")
         
         for r in results:
+            conf = r.get("confidence") or 0.0
             asset_link = f"[Link](file:///{r['asset_path'].replace('\\', '/')})"
-            f.write(f"| {r['segment_index']} | {r['game_title']} | **{r['decision']}** | {r['confidence']:.2f} | {r['reason']} | {asset_link} |\n")
+            f.write(f"| {r['segment_index']} | {r['game_title']} | **{r['decision']}** | {conf:.2f} | {r['reason']} | {asset_link} |\n")
 
     print(f"✓ Summary report saved to: {report_path}")
     conn.close()
