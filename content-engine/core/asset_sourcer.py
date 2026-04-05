@@ -30,30 +30,7 @@ except Exception:
     YOUTUBE_CLIP_ENABLED = True
 
 
-def _build_pollinations_prompt(segment: dict) -> str:
-    """
-    Build a Pollinations art prompt from mechanic extractor output.
-    
-    MVP Logic:
-      - If game_title: "{game_title} {moment} digital art, vibrant game UI screenshot style, 4K"
-      - If game_title None: "{mechanic} {moment} concept art, dark mode digital illustration, 4K"
-    """
-    # 1. Use ai_image_prompt if segmentation already crafted one (e.g. abstract/infographic)
-    existing = segment.get("ai_image_prompt")
-    if existing:
-        return existing
-
-    # 2. Read extractor output columns
-    game_title = segment.get("game_title")
-    mechanic   = segment.get("mechanic")
-    moment     = segment.get("moment") or "gameplay scene"
-
-    if game_title:
-        return f"{game_title} {moment} digital art, vibrant game UI screenshot style, 4K"
-    elif mechanic:
-        return f"{mechanic} {moment} concept art, dark mode digital illustration, 4K"
-    else:
-        return "video game design concept art, vivid digital illustration, high quality, dark mode"
+from core.prompt_builder import build_pollinations_prompt
 
 
 def download_file(url: str, output_path: Path) -> Path:
@@ -192,23 +169,18 @@ def source_asset_for_segment(segment: dict) -> dict:
 
     # ── MVP MODE: Pollinations-only ──────────────────────────────────────────
     if not YOUTUBE_CLIP_ENABLED:
-        poll_prompt = _build_pollinations_prompt(segment)
-        seg_idx = segment.get("segment_index", seg_id)
-        game    = segment.get("game_title") or "(none)"
-        mechanic = segment.get("mechanic") or "(none)"
-        from core.assembler import _extract_key_phrase, _escape_drawtext
-        key_phrase = _extract_key_phrase(segment.get("segment_text", ""))
-        escaped    = _escape_drawtext(key_phrase)
-        drawtext_str = (
-            f"drawbox=x=0:y=810:w=iw:h=140:color=black@0.55:t=fill,"
-            f"drawtext=text='{escaped}':fontsize=52:fontcolor=white"
-            f":x=(w-text_w)/2:y=840:shadowcolor=black@0.6:shadowx=2:shadowy=2"
-        )
+        game_title = segment.get("game_title")
+        mechanic   = segment.get("mechanic")
+        moment     = segment.get("moment")
+        
+        poll_prompt = build_pollinations_prompt(game_title, mechanic, moment)
+        
+        # NOTE: drawtext_string construction moved to stage_p4b_source.py
+        # This function no longer handles filtering strings.
 
         print(f"\n{'='*60}")
-        print(f"  SEG {seg_idx} | game={game} | mechanic={mechanic}")
-        print(f"  Pollinations prompt: {poll_prompt}")
-        print(f"  Drawtext           : \"{key_phrase}\"")
+        print(f"  SEG {segment.get('segment_index')} | game={game_title or '(none)'} | mechanic={mechanic or '(none)'}")
+        print(f"  Pollinations Prompt: {poll_prompt}")
 
         ai = generate_pollinations_image(poll_prompt, seg_id)
         if not ai:
