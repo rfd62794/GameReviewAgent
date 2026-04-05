@@ -1,5 +1,6 @@
 import sys, os
-sys.path.insert(0, ".")
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ["PYTHONIOENCODING"] = "utf-8"
 
 from core.db import get_connection
