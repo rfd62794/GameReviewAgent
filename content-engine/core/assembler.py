@@ -98,7 +98,7 @@ def preprocess_segment(segment: Dict[str, Any], temp_dir: Path, config: Dict[str
             lb = "if(lte(zoom,1.0),1.5,max(1.001,zoom-0.0015))"
             
         filt = (
-            f"scale=8000:-1,zoompan=z='{lb}':d={frames}:"
+            f"scale=4000:-1,zoompan=z='{lb}':d={frames}:"
             f"x='iw/2-(iw/zoom/2)+({pan_x}*iw)':y='ih/2-(ih/zoom/2)+({pan_y}*ih)':s=1920x1080"
         )
         
