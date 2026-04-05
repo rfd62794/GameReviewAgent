@@ -6,7 +6,8 @@ from pathlib import Path
 from datetime import datetime
 
 from core.db import get_connection
-from core.asset_reviewer import evaluate_asset
+from core.asset_reviewer import evaluate_asset, generate_visual_description
+from core.inventory_manager import add_asset
 
 def main():
     parser = argparse.ArgumentParser(description="Stage P4c: Image Review Agent")
@@ -67,6 +68,20 @@ def main():
         review["segment_index"] = seg_idx
         review["game_title"] = seg.get("game_title", "N/A")
         review["asset_path"] = seg["selected_asset"]
+        
+        # --- INVENTORY ACTION ---
+        visual_desc = ""
+        inv_action = "REJECTED"
+        if decision == "ACCEPT":
+            print(f"    [Inventory] Indexing visual description... ", end="", flush=True)
+            visual_desc = generate_visual_description(seg["selected_asset"])
+            print("DONE.")
+            inv_action = "ADDED"
+            
+        success = add_asset(seg, review, visual_description=visual_desc)
+        review["inventory_action"] = inv_action if success else "FAILED"
+        review["visual_description"] = visual_desc
+        
         results.append(review)
 
     duration = time.time() - start_time
@@ -111,8 +126,18 @@ def main():
             game = r.get("game_title") or "N/A"
             reason = r.get("reason") or "No reason provided"
             conf = r.get("confidence") if isinstance(r.get("confidence"), (int, float)) else 0.0
-            asset_link = f"[Link](file:///{r['asset_path'].replace('\\', '/')})"
-            f.write(f"| {seg_idx} | {game} | **{r['decision']}** | {conf:.2f} | {reason} | {asset_link} |\n")
+            asset = Path(r["asset_path"]).as_uri()
+            f.write(f"| {seg_idx} | {game} | **{r['decision']}** | {conf:.2f} | {reason} | [Link]({asset}) |\n")
+
+        f.write(f"\n## Inventory Actions\n\n")
+        f.write("| Seg | Action | Asset Type | Visual Description (Preview) |\n")
+        f.write("| :--- | :--- | :--- | :--- |\n")
+        for r in results:
+            action = r.get("inventory_action", "SKIP")
+            ext = Path(r["asset_path"]).suffix.lower()
+            a_type = "clip" if ext == ".mp4" else "image"
+            desc = r.get("visual_description", "")[:60] + "..." if r.get("visual_description") else "-"
+            f.write(f"| {r['segment_index']} | {action} | {a_type} | {desc} |\n")
 
     print(f"✓ Summary report saved to: {report_path}")
     conn.close()
