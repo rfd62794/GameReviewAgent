@@ -10,6 +10,14 @@ import re
 
 WORDS_PER_SECOND = 2.8
 
+def _estimate_duration(text: str) -> int:
+    """Estimate audio duration in seconds for a text segment."""
+    word_count = len(text.split())
+    # Round up to ensure we have enough visual duration
+    seconds = math.ceil(word_count / WORDS_PER_SECOND)
+    return max(3, seconds)  # Provide at least 3 seconds
+
+
 def segment_script(script_id: int, hook_text: str, body_text: str, tags: list[str]) -> list[dict]:
     """
     Break script into paragraph segments.
