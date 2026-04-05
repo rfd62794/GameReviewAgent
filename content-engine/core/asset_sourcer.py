@@ -135,13 +135,19 @@ def _make_fallback_frame(segment_id: int) -> str:
 from core.db import get_connection
 from core.prompt_engineer import generate_visual_prompt
 
+from core.db import get_connection
+from core.prompt_engineer import generate_visual_prompt
+from core.wiki_sourcer import find_game_slug, search_game_page, get_page_images, download_image
+
 def generate_ai_image(prompt: str, segment_id: int, game_title: Optional[str] = None, mechanic: Optional[str] = None, moment: Optional[str] = None) -> Dict[str, Any] | None:
-    """Generate image(s) using OpenRouter multimodal models. Supports grounding references."""
+    """
+    Generate image(s) using OpenRouter text-to-image.
+    Strictly for abstract concepts or last-resort fallback. No grounding.
+    """
     # Load config
     model = "google/gemini-2.5-flash-image"
     aspect_ratio = "16:9"
     variant_count = CONFIG.get("image_variant_count", 1)
-    refs_enabled = CONFIG.get("reference_images_enabled", True)
     
     _models_path = Path(__file__).resolve().parent.parent / "models.yaml"
     try:
@@ -152,43 +158,23 @@ def generate_ai_image(prompt: str, segment_id: int, game_title: Optional[str] = 
     except:
         pass
 
-    # 1. Fetch style_notes for grounding (if game provided)
+    # 1. Prompt Engineering Stage (DeepSeek)
     style_notes = None
     if game_title:
         conn = get_connection()
-        try:
-            row = conn.execute(
-                "SELECT style_notes FROM game_clip_index WHERE game_title = ? LIMIT 1", 
-                (game_title,)
-            ).fetchone()
-            if row:
-                style_notes = row["style_notes"]
-        finally:
-            conn.close()
+        row = conn.execute("SELECT style_notes FROM game_clip_index WHERE game_title = ?", (game_title,)).fetchone()
+        if row: style_notes = row["style_notes"]
+        conn.close()
 
-    # 2. Prompt Engineering Stage (DeepSeek)
     if game_title and mechanic and moment:
         optimized_prompt = generate_visual_prompt(game_title, mechanic, moment, style_notes)
-        print(f"    [Prompt Engineer] Optimized: {optimized_prompt[:80]}...")
     else:
         optimized_prompt = prompt
 
-    # 3. Grounding Reference (Mechanic-aware)
-    ref_bytes = None
-    if game_title and refs_enabled:
-        ref_bytes = get_reference(game_title, mechanic)
-        msg_context = f"'{game_title} {mechanic}'" if mechanic else f"'{game_title}'"
-        if ref_bytes:
-            print(f"    [OpenRouter AI] Using style reference for {msg_context}")
-        else:
-            print(f"    [OpenRouter AI] No reference found for {msg_context} — using text-only")
-
-    # 4. Multi-variant generation (if cycling enabled)
-    # We use segment_id + index for unique naming
+    # 2. Multi-variant generation
     paths = []
     client = create_llm_client(model=model)
     
-    # Simple heuristic to determine variant count
     prompts = [optimized_prompt]
     if variant_count > 1:
         modifiers = ["close-up detail", "wide shot", "dramatic angle"]
@@ -201,116 +187,108 @@ def generate_ai_image(prompt: str, segment_id: int, game_title: Optional[str] = 
         out_path = GENERATED_DIR / f"ai_img_seg_{segment_id}{suffix}.png"
         
         try:
-            print(f"    [OpenRouter AI] Generating variant {i} for segment {segment_id}...")
+            print(f"    [OpenRouter AI] Generating variant {i}...")
             image_bytes = client.generate_image(
                 prompt=p,
                 aspect_ratio=aspect_ratio,
                 image_size="2K",
-                model=model,
-                reference_bytes=ref_bytes
+                model=model
             )
             
             if image_bytes:
                 with open(out_path, "wb") as f:
                     f.write(image_bytes)
                 paths.append(str(out_path))
-                size_kb = out_path.stat().st_size // 1024
-                print(f"    [OpenRouter AI] OK — {size_kb}KB ({out_path.name})")
         except Exception as e:
-            print(f"    [OpenRouter AI] Variant {i} FAILED: {e}")
+            print(f"    [OpenRouter AI] FAILED: {e}")
 
-    if not paths:
-        return None
+    if not paths: return None
         
     return {
         "paths": paths, 
-        "reference_used": 1 if ref_bytes else 0,
         "variant_count": len(paths)
     }
 
 
+def source_wiki_screenshot(game_title: str, mechanic: str, segment_id: int) -> str | None:
+    """Source an authentic screenshot from the game wiki."""
+    slug = find_game_slug(game_title)
+    
+    # 1. Try mechanic-specific page
+    page = search_game_page(game_title, slug, mechanic)
+    if not page:
+        # 2. Fallback to main game page
+        page = search_game_page(game_title, slug)
+        
+    if not page: return None
+    
+    urls = get_page_images(page, slug)
+    if not urls: return None
+    
+    # Take the first high-res image
+    for url in urls:
+        img_bytes = download_image(url)
+        if img_bytes:
+            out_path = ASSETS_DIR / "wiki" / f"seg_{segment_id}.png"
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(out_path, "wb") as f:
+                f.write(img_bytes)
+            return str(out_path)
+            
+    return None
+
+
 def source_asset_for_segment(segment: dict) -> dict:
     """
-    Take an asset_brief segment and return the path and source of the best asset.
-
-    MVP mode (youtube_clip_enabled: false):
-      Every segment → Pollinations AI still with a game-context prompt.
-      No YouTube calls. No Wikimedia calls.
-
-    Full mode (youtube_clip_enabled: true):
-      Standard priority chain: local → YouTube → Wikimedia → Pexels → Pollinations.
+    Route to the best available asset based on context.
+    Priority: Local -> YouTube -> Wiki -> AI Fallback.
     """
-    vtype = segment["visual_type"]
-    query = segment.get("search_query", "")
+    game_title = segment.get("game_title")
+    mechanic = segment.get("mechanic")
+    moment = segment.get("moment")
     seg_id = segment["id"]
+    seg_idx = segment.get("segment_index", "?")
+    
+    print(f"\n--- ROUTING SEGMENT {seg_idx} | game={game_title or '[Abstract]'} ---")
 
-    # ── MVP MODE: Pollinations-only ──────────────────────────────────────────
-    if not YOUTUBE_CLIP_ENABLED:
-        game_title = segment.get("game_title")
-        mechanic   = segment.get("mechanic")
-        moment     = segment.get("moment")
-        
-        poll_prompt = build_pollinations_prompt(game_title, mechanic, moment)
-        
-        # NOTE: drawtext_string construction moved to stage_p4b_source.py
-        # This function no longer handles filtering strings.
-
-        print(f"\n{'='*60}")
-        print(f"  SEG {segment.get('segment_index')} | game={game_title or '(none)'} | mechanic={mechanic or '(none)'}")
-        print(f"  Pollinations Prompt: {poll_prompt}")
-
-        res = generate_ai_image(poll_prompt, seg_id, game_title, mechanic)
-        if not res:
-            print(f"  [FALLBACK] AI generation failed — using dark-blue frame")
-            fallback_path = _make_fallback_frame(seg_id)
-            if fallback_path:
-                return {"path": fallback_path, "source": "ai_generated", "paths": [fallback_path]}
-            return {"path": None, "source": None}
-
-        return {
-            "path": res["paths"][0], 
-            "source": "ai_generated", 
-            "paths": res["paths"],
-            "reference_used": res["reference_used"],
-            "variant_count": res["variant_count"]
-        }
-
-    # ── FULL MODE (Skip if YouTube disabled) ─────────────────────────────────
-    if not YOUTUBE_CLIP_ENABLED:
-        return {"path": None, "source": None}
-
-    prompt = segment.get("ai_image_prompt", "")
-
-    # 1. Gameplay Clip & Stock Clip — YouTube primary
-    if vtype in ["gameplay_clip", "stock_clip"]:
-        local = check_local_gameplay(query)
+    # 1. GAME-SPECIFIC CHAIN
+    if game_title:
+        # a) Local Gameplay
+        local = check_local_gameplay(f"{game_title} {mechanic}")
         if local:
-            return {"path": local, "source": "local"}
-
+            print(f"  [ROUTING] Match found in local library: {Path(local).name}")
+            return {"path": local, "source": "local", "paths": [local]}
+            
+        # b) YouTube Clip
+        print(f"  [ROUTING] Attempting YouTube capture...")
         yt_res = yt_source(segment)
         if yt_res:
-            return {"path": yt_res["path"], "source": yt_res["source"]}
+            print(f"  [ROUTING] YouTube SUCCESS: {Path(yt_res['path']).name}")
+            return {"path": yt_res["path"], "source": "youtube", "paths": [yt_res["path"]]}
+            
+        # c) Wiki Screenshot
+        print(f"  [ROUTING] Attempting Wiki screenshot...")
+        wiki_path = source_wiki_screenshot(game_title, mechanic, seg_id)
+        if wiki_path:
+            print(f"  [ROUTING] Wiki SUCCESS: {Path(wiki_path).name}")
+            return {"path": wiki_path, "source": "wikimedia", "paths": [wiki_path]}
+            
+        # d) AI Fallback (Game context, but last resort)
+        print(f"  [ROUTING] Real assets failed. Falling back to AI...")
+        prompt = f"{game_title} {mechanic}, {moment}, game screenshot style"
+        res = generate_ai_image(prompt, seg_id, game_title, mechanic, moment)
+        if res:
+            return {"path": res["paths"][0], "source": "ai_generated", "paths": res["paths"]}
 
-        wiki = search_wikimedia(query, seg_id)
-        if wiki:
-            return {"path": wiki, "source": "wikimedia"}
-
-    # 2. Stock Image — Pexels
-    if vtype == "stock_still":
-        pex_img = search_pexels_image(query, seg_id)
-        if pex_img:
-            return {"path": pex_img, "source": "pexels"}
-
-    # 3. AI Image / universal fallback
-    poll_prompt = _build_pollinations_prompt(segment) if not prompt else prompt
-    res = generate_ai_image(poll_prompt, seg_id, segment.get("game_title"), segment.get("mechanic"))
-    if res:
-        return {
-            "path": res["paths"][0], 
-            "source": "ai_image",
-            "paths": res["paths"],
-            "reference_used": res["reference_used"],
-            "variant_count": res["variant_count"]
-        }
-
-    return {"path": None, "source": None}
+    # 2. ABSTRACT CHAIN
+    else:
+        print(f"  [ROUTING] Abstract segment. Starting with AI generation...")
+        prompt = segment.get("ai_image_prompt") or build_infographic_prompt(segment.get("segment_text"))
+        res = generate_ai_image(prompt, seg_id)
+        if res:
+            return {"path": res["paths"][0], "source": "ai_generated", "paths": res["paths"]}
+            
+    # 3. ABSOLUTE FALLBACK
+    print(f"  [ROUTING] ALL SOURCES FAILED. Using dark-blue frame.")
+    fallback = _make_fallback_frame(seg_id)
+    return {"path": fallback, "source": "ai_generated", "paths": [fallback]}

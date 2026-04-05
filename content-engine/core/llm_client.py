@@ -165,53 +165,19 @@ class OpenRouterLLMAdapter:
         prompt: str,
         aspect_ratio: str = "16:9",
         image_size: str = "2K",
-        model: Optional[str] = None,
-        reference_bytes: Optional[bytes] = None
+        model: Optional[str] = None
     ) -> bytes | None:
         """
-        Specialized call for image generation via OpenRouter multimodal endpoint.
+        Specialized call for image generation via OpenRouter.
         Returns raw bytes of the decoded PNG image.
         """
         model = model or self.model
         
-        if reference_bytes:
-            # Multimodal payload with refined instruction contract
-            b64_img = base64.b64encode(reference_bytes).decode()
-            
-            # System-style structured instruction
-            instruction = (
-                f"SYSTEM: You are generating a scene from a video game.\n\n"
-                f"REFERENCE IMAGE: Analyze this actual gameplay screenshot. Study:\n"
-                f"- Color palette and lighting style\n"
-                f"- UI element aesthetic (borders, fonts, icons)\n"
-                f"- Overall visual tone and mood\n"
-                f"- Art style (pixel art / cartoon / realistic)\n\n"
-                f"DO NOT recreate the reference image. DO NOT copy the exact scene.\n\n"
-                f"GENERATE: A NEW scene based on this visual language:\n"
-                f"{prompt}\n\n"
-                f"Maintain the visual style and art direction of the reference."
-            )
-            
-            messages = [{
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/png;base64,{b64_img}"}
-                    },
-                    {
-                        "type": "text",
-                        "text": instruction
-                    }
-                ]
-            }]
-        else:
-            # Standard text-only payload
-            messages = [{"role": "user", "content": prompt}]
+        # Standard text-only payload
+        messages = [{"role": "user", "content": prompt}]
         
-        # We call _make_request directly for image generation to use 
-        # specific multimodal modalities and image_config.
         try:
+            print(f"    [OpenRouter LLM] Generating image with {model}...")
             response_data = self._make_request(
                 model=model,
                 messages=messages,
@@ -222,15 +188,13 @@ class OpenRouterLLMAdapter:
                 }
             )
             
-            # OpenRouter returns images in choice.message.images
-            # Structure: choices[0].message.images[0].image_url.url (base64)
             self._validate_response(response_data)
             choice = response_data["choices"][0]
             message = choice.get("message", {})
             images = message.get("images", [])
             
             if not images:
-                self.logger.error("No images found in multimodal response")
+                self.logger.error("No images found in response")
                 return None
             
             # Extract base64 URL
