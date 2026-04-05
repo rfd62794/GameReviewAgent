@@ -132,7 +132,7 @@ def _make_fallback_frame(segment_id: int) -> str:
         return None
 
 
-def generate_ai_image(prompt: str, segment_id: int, game_title: Optional[str] = None) -> Dict[str, Any] | None:
+def generate_ai_image(prompt: str, segment_id: int, game_title: Optional[str] = None, mechanic: Optional[str] = None) -> Dict[str, Any] | None:
     """Generate image(s) using OpenRouter multimodal models. Supports grounding references."""
     # Load config
     model = "google/gemini-2.5-flash-image"
@@ -149,14 +149,15 @@ def generate_ai_image(prompt: str, segment_id: int, game_title: Optional[str] = 
     except:
         pass
 
-    # 1. Grounding Reference
+    # 1. Grounding Reference (Mechanic-aware)
     ref_bytes = None
     if game_title and refs_enabled:
-        ref_bytes = get_reference(game_title)
+        ref_bytes = get_reference(game_title, mechanic)
+        msg_context = f"'{game_title} {mechanic}'" if mechanic else f"'{game_title}'"
         if ref_bytes:
-            print(f"    [OpenRouter AI] Using style reference for '{game_title}'")
+            print(f"    [OpenRouter AI] Using style reference for {msg_context}")
         else:
-            print(f"    [OpenRouter AI] No reference found for '{game_title}' — using text-only")
+            print(f"    [OpenRouter AI] No reference found for {msg_context} — using text-only")
 
     # 2. Multi-variant generation (if cycling enabled)
     # We use segment_id + index for unique naming
@@ -239,7 +240,7 @@ def source_asset_for_segment(segment: dict) -> dict:
         print(f"  SEG {segment.get('segment_index')} | game={game_title or '(none)'} | mechanic={mechanic or '(none)'}")
         print(f"  Pollinations Prompt: {poll_prompt}")
 
-        res = generate_ai_image(poll_prompt, seg_id, game_title)
+        res = generate_ai_image(poll_prompt, seg_id, game_title, mechanic)
         if not res:
             print(f"  [FALLBACK] AI generation failed — using dark-blue frame")
             fallback_path = _make_fallback_frame(seg_id)
@@ -283,7 +284,7 @@ def source_asset_for_segment(segment: dict) -> dict:
 
     # 3. AI Image / universal fallback
     poll_prompt = _build_pollinations_prompt(segment) if not prompt else prompt
-    res = generate_ai_image(poll_prompt, seg_id, segment.get("game_title"))
+    res = generate_ai_image(poll_prompt, seg_id, segment.get("game_title"), segment.get("mechanic"))
     if res:
         return {
             "path": res["paths"][0], 
