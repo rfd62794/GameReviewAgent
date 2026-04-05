@@ -46,4 +46,3 @@ def preview():
 
 if __name__ == "__main__":
     preview()
-unlink
