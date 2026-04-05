@@ -62,6 +62,26 @@ def migrate():
     conn.execute("CREATE INDEX IF NOT EXISTS idx_inventory_game_mechanic ON asset_inventory(game_title, mechanic)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_inventory_type_status ON asset_inventory(asset_type, review_status)")
     
+    # 3. Create clip_download_queue table
+    print("[3/3] Creating clip_download_queue table...")
+    conn.execute("""
+    CREATE TABLE IF NOT EXISTS clip_download_queue (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        youtube_url     TEXT NOT NULL,
+        youtube_video_id TEXT NOT NULL,
+        timestamp_start INTEGER NOT NULL,
+        timestamp_end   INTEGER NOT NULL,
+        confidence      REAL NOT NULL,
+        mechanic_shown  TEXT NOT NULL,
+        game_title      TEXT,
+        status          TEXT DEFAULT 'queued'
+                        CHECK (status IN ('queued', 'downloading', 'done', 'failed')),
+        created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+        processed_at    TEXT
+    )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_queue_status_conf ON clip_download_queue(status, confidence)")
+    
     conn.commit()
     conn.close()
     
