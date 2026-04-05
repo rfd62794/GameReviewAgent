@@ -211,6 +211,44 @@ class OpenRouterLLMAdapter:
             self.logger.error(f"Image generation failed: {e}")
             return None
 
+    def generate_vision(
+        self,
+        prompt: str,
+        b64_img: str,
+        system_prompt: Optional[str] = None,
+        model: Optional[str] = None,
+        temperature: float = 0.0,
+        response_format: Optional[Dict[str, str]] = {"type": "json_object"}
+    ) -> Dict[str, Any]:
+        """
+        Generate a response based on an image and a text prompt.
+        Used for vision auditing in P4c.
+        """
+        model = model or self.model
+        
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+            
+        messages.append({
+            "role": "user",
+            "content": [
+                {"type": "text", "text": prompt},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{b64_img}"}
+                }
+            ]
+        })
+        
+        return self.call_with_retries(
+            model=model,
+            messages=messages,
+            temperature=temperature,
+            response_format=response_format,
+            agent_name="asset_reviewer"
+        )
+
     def call_with_retries(
         self,
         model: str,
