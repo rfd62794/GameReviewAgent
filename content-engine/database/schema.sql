@@ -61,6 +61,9 @@ CREATE TABLE IF NOT EXISTS asset_briefs (
     moment          TEXT,   -- from mechanic_extractor
     selected_asset  TEXT,
     asset_source    TEXT    CHECK (asset_source IN ('pexels', 'wikimedia', 'local', 'ai_generated', NULL)),
+    drawtext_string TEXT,   -- built by prompt_builder
+    key_phrase      TEXT,   -- built by prompt_builder
+    pollinations_prompt TEXT, -- built by prompt_builder
     status          TEXT    NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sourced', 'approved'))
 );
 
