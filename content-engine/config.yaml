@@ -1,33 +1,23 @@
-# ContentEngine Global Configuration
-
-llm:
-  routing_mode: "openrouter"
-
 assembly:
-  subtitles_enabled: false
-  subtitle_mode: "burn"          # "burn", "srt", or "both"
-  transition_style: "hard"       # "hard" or "crossfade"
-  output_resolution_midform: "1920x1080"
-  output_resolution_short: "1080x1920"
-  ken_burns_intensity: "slow"    # "slow", "medium", or "fast"
-  asset_fallback_ai: true        # Use AI image generation for abstract segments if no stock found
-  youtube_clip_enabled: false  # MVP run: Pollinations-only, no YouTube
-  youtube_candidates: 5
-  youtube_confidence_threshold: 0.8
-  youtube_clip_timeout: 15
-  youtube_clip_buffer_s: 2
-  
-  # Image Cycling & Grounding
-  reference_images_enabled: true
+  asset_fallback_ai: true
   image_cycling_enabled: true
-  image_cycling_mode: "ken_burns"    # "ken_burns" or "variants"
   image_cycling_interval_s: 12
+  image_cycling_mode: ken_burns
   image_variant_count: 2
-  
-  # Subtitles
+  ken_burns_intensity: slow
+  output_resolution_midform: 1920x1080
+  output_resolution_short: 1080x1920
+  reference_images_enabled: true
+  subtitle_mode: srt
   subtitles_enabled: true
-  subtitle_mode: "srt"              # "srt", "burn", or "both"
-
+  transition_style: hard
+  youtube_candidates: 5
+  youtube_clip_buffer_s: 2
+  youtube_clip_enabled: true
+  youtube_clip_timeout: 15
+  youtube_confidence_threshold: 0.8
+llm:
+  routing_mode: openrouter
 ytdlp_extra_flags:
-  - "--remote-components"
-  - "ejs:github"
+- --remote-components
+- ejs:github
