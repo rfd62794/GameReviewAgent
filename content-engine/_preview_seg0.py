@@ -1,6 +1,8 @@
 import sys, os
 sys.path.insert(0, ".")
 os.environ["PYTHONIOENCODING"] = "utf-8"
+OUT = open("_preview_seg0_out.txt", "w", encoding="utf-8")
+def pr(s=""): OUT.write(s + "\n"); print(s)
 
 from core.db import get_connection
 from core.asset_sourcer import _build_pollinations_prompt
@@ -23,18 +25,20 @@ drawtext    = (
     f":shadowcolor=black@0.6:shadowx=2:shadowy=2"
 )
 
-print()
-print("=== SEGMENT 0 PREVIEW ===")
-print(f"segment_text (first 120 chars):")
-print(f"  {seg['segment_text'][:120]}")
-print()
-print("1. POLLINATIONS PROMPT:")
-print(f"   {poll_prompt}")
-print()
-print("2. DRAWTEXT OVERLAY:")
-print(f"   key_phrase : \"{key_phrase}\"")
-print(f"   filter     : {drawtext}")
-print()
-print(f"3. ESTIMATED DURATION: {seg['estimated_duration_s']}s")
-print()
-print("=== END PREVIEW ===")
+pr()
+pr("=== SEGMENT 0 PREVIEW ===")
+pr(f"segment_text (first 120 chars):")
+pr(f"  {seg['segment_text'][:120]}")
+pr()
+pr("1. POLLINATIONS PROMPT:")
+pr(f"   {poll_prompt}")
+pr()
+pr("2. DRAWTEXT OVERLAY:")
+pr(f"   key_phrase : \"{key_phrase}\"")
+pr(f"   filter     : {drawtext}")
+pr()
+pr(f"3. ESTIMATED DURATION: {seg['estimated_duration_s']}s")
+pr()
+pr("=== END PREVIEW ===")
+OUT.close()
+print("\n[written to _preview_seg0_out.txt]")
