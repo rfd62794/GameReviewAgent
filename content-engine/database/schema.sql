@@ -97,6 +97,8 @@ CREATE TABLE game_clip_index (
     confidence_avg REAL DEFAULT 0.0,
     verified INTEGER DEFAULT 0,
     suggested_by TEXT DEFAULT 'llm',
+    needs_reference INTEGER DEFAULT 0,
+    reference_image_path TEXT NULL,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     last_used_at TEXT NULL
 );
