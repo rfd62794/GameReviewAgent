@@ -3,6 +3,7 @@ import subprocess
 import json
 import math
 import shutil
+import logging
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
@@ -10,6 +11,24 @@ try:
     import whisper
 except ImportError:
     whisper = None
+
+logger = logging.getLogger(__name__)
+
+
+def sanitize_drawtext(text: str) -> str:
+    """Escape characters that break FFmpeg filter syntax on Windows."""
+    if not text:
+        return ""
+    # Smart apostrophe to avoid escaping headaches with single quotes
+    text = text.replace("'", "\u2019")
+    # Escaping for filter syntax
+    text = text.replace(":", "\\:")
+    text = text.replace(",", "\\,")
+    text = text.replace("[", "\\[")
+    text = text.replace("]", "\\]")
+    # Convert backslashes for Windows paths in filters
+    text = text.replace("\\", "/")
+    return text
 
 
 def get_ffmpeg_path() -> str:
@@ -98,29 +117,61 @@ def preprocess_segment(segment: Dict[str, Any], temp_dir: Path, config: Dict[str
         pan_x = ["-0.02", "0.02", "0", "-0.02"][i % 4]
         pan_y = ["0", "-0.02", "0.02", "0"][i % 4]
         
-        # FFmpeg zoompan string
-        # Zoom speed 0.0015 @ 30fps = ~1.5x zoom in 10s
-        frames = int(clip_duration * 30)
-        if zoom_direction == "in":
-            lb = "min(zoom+0.0015,1.5)"
-        else:
-            lb = "if(lte(zoom,1.0),1.5,max(1.001,zoom-0.0015))"
-            
-        filt = (
+        # -------------------------------------------------------------
+        # PASS 1: Ken Burns (Zoompan) only
+        # -------------------------------------------------------------
+        kb_tmp = temp_dir / f"seg_{idx}_part_{i}_kb.mp4"
+        
+        filt_kb = (
             f"scale=1920:1080,zoompan=z='{lb}':d={frames}:"
             f"x='round(iw/2-(iw/zoom/2)+({pan_x}*iw))':y='round(ih/2-(ih/zoom/2)+({pan_y}*ih))':s=1920x1080"
         )
         
-        if drawtext_filter and i == 0: # Only draw text on first interval for now
-            filt += f",{drawtext_filter}"
-            
-        cmd = [
+        cmd_kb = [
             get_ffmpeg_path(), "-y", "-framerate", "30", "-loop", "1", "-i", str(img_path),
-            "-vf", filt, "-t", str(clip_duration),
-            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "fast", "-an", str(out_clip)
+            "-vf", filt_kb, "-t", str(clip_duration),
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "fast", "-an", str(kb_tmp)
         ]
         
-        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        result_kb = subprocess.run(cmd_kb, capture_output=True, text=True)
+        if result_kb.returncode != 0:
+            logger.error(f"FFmpeg Pass 1 (KB) failed for seg {idx}: {result_kb.stderr[-500:]}")
+            raise subprocess.CalledProcessError(result_kb.returncode, cmd_kb, output=result_kb.stdout, stderr=result_kb.stderr)
+            
+        # -------------------------------------------------------------
+        # PASS 2: Drawtext / Box Overlay (Optional)
+        # -------------------------------------------------------------
+        # Only apply text to the FIRST interval of the segment (usually the hook)
+        if drawtext_filter and i == 0:
+            # We assume drawtext_filter is just the raw text for now, 
+            # let's build the actual filter string with sanitization
+            safe_text = sanitize_drawtext(drawtext_filter)
+            
+            # Implementation of a production-grade Title Slide filter
+            # Dark semi-transparent box + White text
+            filt_text = (
+                f"drawbox=y=ih*0.7:h=ih*0.2:color=black@0.6:t=fill,"
+                f"drawtext=text='{safe_text}':fontcolor=white:fontsize=64:"
+                f"x=(w-text_w)/2:y=ih*0.75+(ih*0.1-text_h)/2"
+            )
+            
+            cmd_text = [
+                get_ffmpeg_path(), "-y", "-i", str(kb_tmp),
+                "-vf", filt_text,
+                "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "fast", "-an", str(out_clip)
+            ]
+            
+            result_text = subprocess.run(cmd_text, capture_output=True, text=True)
+            if result_text.returncode != 0:
+                logger.error(f"FFmpeg Pass 2 (Text) failed for seg {idx}: {result_text.stderr[-500:]}")
+                raise subprocess.CalledProcessError(result_text.returncode, cmd_text, output=result_text.stdout, stderr=result_text.stderr)
+            
+            # Cleanup intermediate
+            if kb_tmp.exists(): kb_tmp.unlink()
+        else:
+            # No text, just move Pass 1 result
+            shutil.move(str(kb_tmp), str(out_clip))
+            
         interval_clips.append(out_clip)
 
     # Concatenate intervals
@@ -132,10 +183,13 @@ def preprocess_segment(segment: Dict[str, Any], temp_dir: Path, config: Dict[str
         with open(concat_txt, "w") as f:
             for c in interval_clips:
                 f.write(f"file '{c.resolve()}'\n")
-        subprocess.run([
+        result_concat = subprocess.run([
             get_ffmpeg_path(), "-y", "-f", "concat", "-safe", "0", "-i", str(concat_txt),
             "-c", "copy", str(final_seg)
-        ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        ], capture_output=True, text=True)
+        if result_concat.returncode != 0:
+            logger.error(f"FFmpeg Concat failed for seg {idx}: {result_concat.stderr[-500:]}")
+            raise subprocess.CalledProcessError(result_concat.returncode, "ffmpeg_concat", output=result_concat.stdout, stderr=result_concat.stderr)
         
     return final_seg
 
@@ -153,10 +207,13 @@ def assemble_video(segments: List[Dict[str, Any]], audio_path: Path, output_path
             
     # Concatenate visuals
     visuals_only = temp_dir / "visuals_no_audio.mp4"
-    subprocess.run([
-        "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_file),
+    result_vconcat = subprocess.run([
+        get_ffmpeg_path(), "-y", "-f", "concat", "-safe", "0", "-i", str(concat_file),
         "-c", "copy", str(visuals_only)
-    ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    ], capture_output=True, text=True)
+    if result_vconcat.returncode != 0:
+        logger.error(f"FFmpeg Visual Concat failed: {result_vconcat.stderr[-500:]}")
+        raise subprocess.CalledProcessError(result_vconcat.returncode, "ffmpeg_visual_concat", output=result_vconcat.stdout, stderr=result_vconcat.stderr)
     
     # Subtitles
     srt_path = None
@@ -175,11 +232,14 @@ def assemble_video(segments: List[Dict[str, Any]], audio_path: Path, output_path
         vf.append(f"subtitles='{esc_path}'")
         
     if vf:
-        cmd.extend(["-vf", ",".join(vf)])
+        cmd += ["-vf", ",".join(vf)]
         
-    cmd.extend(["-c:v", "libx264", "-c:a", "aac", "-shortest", str(output_path)])
+    cmd += ["-c:v", "libx264", "-c:a", "aac", "-shortest", str(output_path)]
     
-    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    result_mux = subprocess.run(cmd, capture_output=True, text=True)
+    if result_mux.returncode != 0:
+        logger.error(f"FFmpeg Mux failed: {result_mux.stderr[-500:]}")
+        raise subprocess.CalledProcessError(result_mux.returncode, cmd, output=result_mux.stdout, stderr=result_mux.stderr)
     
     if srt_path and sub_mode not in ["srt", "both"]:
         srt_path.unlink()
