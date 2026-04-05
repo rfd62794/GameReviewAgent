@@ -57,6 +57,44 @@ class TestLLMClient(unittest.TestCase):
         # Verify bytes
         self.assertEqual(res, b"fake_png_bytes")
 
+    @patch("requests.post")
+    def test_generate_image_with_reference_builds_multimodal_message(self, mock_post):
+        # Mock successful base64 response
+        fake_base64 = base64.b64encode(b"fake_png_bytes").decode()
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = {
+            "choices": [{"message": {"images": [{"image_url": {"url": f"data:image/png;base64,{fake_base64}"}}]}}]
+        }
+        
+        reference = b"fake_reference_bytes"
+        self.adapter.generate_image("A cat", reference_bytes=reference)
+        
+        # Verify payload messages structure
+        payload = mock_post.call_args.kwargs["json"]
+        messages = payload["messages"]
+        self.assertEqual(len(messages), 1)
+        content = messages[0]["content"]
+        self.assertIsInstance(content, list)
+        self.assertEqual(content[0]["type"], "image_url")
+        self.assertEqual(content[1]["type"], "text")
+        self.assertIn("visual style reference", content[1]["text"])
+
+    @patch("requests.post")
+    def test_generate_image_without_reference_builds_text_only_message(self, mock_post):
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = {
+            "choices": [{"message": {"images": [{"image_url": {"url": "data:image/png;base64,AAA"}}]}}]
+        }
+        
+        self.adapter.generate_image("A cat", reference_bytes=None)
+        
+        # Verify payload messages structure
+        payload = mock_post.call_args.kwargs["json"]
+        messages = payload["messages"]
+        content = messages[0]["content"]
+        self.assertIsInstance(content, str)
+        self.assertEqual(content, "A cat")
+
     def test_payload_side_by_side(self):
         """Manual verification for the user of payload differences."""
         with patch("requests.post") as mock_post:

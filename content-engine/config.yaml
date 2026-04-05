@@ -16,6 +16,13 @@ assembly:
   youtube_confidence_threshold: 0.8
   youtube_clip_timeout: 15
   youtube_clip_buffer_s: 2
+  
+  # Image Cycling & Grounding
+  reference_images_enabled: true
+  image_cycling_enabled: true
+  image_cycling_mode: "ken_burns"    # "ken_burns" or "variants"
+  image_cycling_interval_s: 12
+  image_variant_count: 2
 
 ytdlp_extra_flags:
   - "--remote-components"

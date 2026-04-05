@@ -33,6 +33,33 @@ def migrate():
         else:
             print("  - Column 'needs_reference' already exists. Skipping.")
             
+        # 3. asset_briefs: image_paths
+        cursor = conn.execute("SELECT COUNT(*) FROM pragma_table_info('asset_briefs') WHERE name='image_paths'")
+        exists = cursor.fetchone()[0] > 0
+        if not exists:
+            print("  > Adding column to asset_briefs: image_paths")
+            conn.execute("ALTER TABLE asset_briefs ADD COLUMN image_paths TEXT NULL")
+        else:
+            print("  - Column 'image_paths' already exists. Skipping.")
+            
+        # 4. asset_briefs: image_variant_count
+        cursor = conn.execute("SELECT COUNT(*) FROM pragma_table_info('asset_briefs') WHERE name='image_variant_count'")
+        exists = cursor.fetchone()[0] > 0
+        if not exists:
+            print("  > Adding column to asset_briefs: image_variant_count")
+            conn.execute("ALTER TABLE asset_briefs ADD COLUMN image_variant_count INTEGER DEFAULT 1")
+        else:
+            print("  - Column 'image_variant_count' already exists. Skipping.")
+            
+        # 5. asset_briefs: reference_used
+        cursor = conn.execute("SELECT COUNT(*) FROM pragma_table_info('asset_briefs') WHERE name='reference_used'")
+        exists = cursor.fetchone()[0] > 0
+        if not exists:
+            print("  > Adding column to asset_briefs: reference_used")
+            conn.execute("ALTER TABLE asset_briefs ADD COLUMN reference_used INTEGER DEFAULT 0")
+        else:
+            print("  - Column 'reference_used' already exists. Skipping.")
+            
         conn.commit()
         print("\nMigration Complete.")
         

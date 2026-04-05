@@ -80,3 +80,29 @@ def build_infographic_prompt(segment_text: str) -> str:
     # Use first sentence/clause for context
     context = segment_text.split('.')[0].strip()
     return f"Minimalist clean infographic style illustration representing {context}. Dark mode colors, premium."
+
+
+def build_variant_prompts(game_title: str, mechanic: str, moment: str, n: int = 2) -> List[str]:
+    """
+    Generate n compositional variants of the same concept.
+    Index 0 is always the base prompt.
+    """
+    base = build_pollinations_prompt(game_title, mechanic, moment)
+    if n <= 1:
+        return [base]
+        
+    modifiers = [
+        "close-up detail",
+        "wide establishing shot",
+        "from above",
+        "dramatic angle",
+        "UI focus",
+        "ambient lighting"
+    ]
+    
+    prompts = [base]
+    for i in range(1, n):
+        mod = modifiers[i % len(modifiers)]
+        prompts.append(f"{base}, {mod}")
+        
+    return prompts

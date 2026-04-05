@@ -165,14 +165,34 @@ class OpenRouterLLMAdapter:
         prompt: str,
         aspect_ratio: str = "16:9",
         image_size: str = "2K",
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        reference_bytes: Optional[bytes] = None
     ) -> bytes | None:
         """
         Specialized call for image generation via OpenRouter multimodal endpoint.
         Returns raw bytes of the decoded PNG image.
         """
         model = model or self.model
-        messages = [{"role": "user", "content": prompt}]
+        
+        if reference_bytes:
+            # Multimodal payload
+            b64_img = base64.b64encode(reference_bytes).decode()
+            messages = [{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/png;base64,{b64_img}"}
+                    },
+                    {
+                        "type": "text",
+                        "text": f"Use this screenshot as a visual style reference for the game shown. Generate: {prompt}"
+                    }
+                ]
+            }]
+        else:
+            # Standard text-only payload
+            messages = [{"role": "user", "content": prompt}]
         
         # We call _make_request directly for image generation to use 
         # specific multimodal modalities and image_config.

@@ -3,10 +3,10 @@ import re
 import yaml
 import requests
 import urllib.parse
+import json
 from pathlib import Path
+from typing import Optional, Dict, Any
 from dotenv import load_dotenv
-
-from core.llm_client import create_llm_client
 
 load_dotenv()
 
@@ -18,8 +18,6 @@ LOCAL_GAMEPLAY_DIR = ASSETS_DIR / "gameplay"
 DL_DIR = ASSETS_DIR / "downloads"
 GENERATED_DIR = ASSETS_DIR / "generated"
 
-from core.youtube_sourcer import source_for_segment as yt_source
-
 LOCAL_GAMEPLAY_DIR.mkdir(parents=True, exist_ok=True)
 DL_DIR.mkdir(parents=True, exist_ok=True)
 GENERATED_DIR.mkdir(parents=True, exist_ok=True)
@@ -29,12 +27,19 @@ _CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.yaml"
 try:
     with open(_CONFIG_PATH, "r", encoding="utf-8") as _f:
         _cfg = yaml.safe_load(_f)
-    YOUTUBE_CLIP_ENABLED = _cfg.get("assembly", {}).get("youtube_clip_enabled", True)
+    CONFIG = _cfg.get("assembly", {})
 except Exception:
-    YOUTUBE_CLIP_ENABLED = True
+    CONFIG = {}
 
+YOUTUBE_CLIP_ENABLED = CONFIG.get("youtube_clip_enabled", True)
 
-from core.prompt_builder import build_pollinations_prompt
+from core.youtube_sourcer import source_for_segment as yt_source
+from core.llm_client import create_llm_client
+from core.reference_manager import get_reference
+from core.prompt_builder import (
+    build_pollinations_prompt, 
+    build_variant_prompts
+)
 
 
 def download_file(url: str, output_path: Path) -> Path:
@@ -127,15 +132,13 @@ def _make_fallback_frame(segment_id: int) -> str:
         return None
 
 
-def generate_ai_image(prompt: str, segment_id: int) -> str | None:
-    """Generate an image using OpenRouter multimodal models. Saves as PNG."""
-    if not prompt:
-        return None
-
-    # Load config for model/aspect ratio
-    # Defaulting if not found in root config.yaml
+def generate_ai_image(prompt: str, segment_id: int, game_title: Optional[str] = None) -> Dict[str, Any] | None:
+    """Generate image(s) using OpenRouter multimodal models. Supports grounding references."""
+    # Load config
     model = "google/gemini-2.5-flash-image"
     aspect_ratio = "16:9"
+    variant_count = CONFIG.get("image_variant_count", 1)
+    refs_enabled = CONFIG.get("reference_images_enabled", True)
     
     _models_path = Path(__file__).resolve().parent.parent / "models.yaml"
     try:
@@ -146,28 +149,64 @@ def generate_ai_image(prompt: str, segment_id: int) -> str | None:
     except:
         pass
 
-    out_path = GENERATED_DIR / f"ai_img_seg_{segment_id}.png"
+    # 1. Grounding Reference
+    ref_bytes = None
+    if game_title and refs_enabled:
+        ref_bytes = get_reference(game_title)
+        if ref_bytes:
+            print(f"    [OpenRouter AI] Using style reference for '{game_title}'")
+        else:
+            print(f"    [OpenRouter AI] No reference found for '{game_title}' — using text-only")
+
+    # 2. Multi-variant generation (if cycling enabled)
+    # We use segment_id + index for unique naming
+    paths = []
     client = create_llm_client(model=model)
+    
+    # Simple heuristic to determine variant count if prompt given is base
+    # In full pipeline, P4b will pass the prompt. 
+    # If we need variants, we use build_variant_prompts.
+    # For now, we take the provided prompt and generate N versions.
+    prompts = [prompt]
+    if variant_count > 1:
+        # Note: We don't have mechanic/moment here easily, so we just
+        # append compositional modifiers to the base prompt directly.
+        modifiers = ["close-up detail", "wide shot", "dramatic angle"]
+        for i in range(1, variant_count):
+            mod = modifiers[i % len(modifiers)]
+            prompts.append(f"{prompt}, {mod}")
 
-    try:
-        print(f"    [OpenRouter AI] Generating image for segment {segment_id}...")
-        image_bytes = client.generate_image(
-            prompt=prompt,
-            aspect_ratio=aspect_ratio,
-            image_size="2K",
-            model=model
-        )
+    for i, p in enumerate(prompts):
+        suffix = f"_v{i}" if variant_count > 1 else ""
+        out_path = GENERATED_DIR / f"ai_img_seg_{segment_id}{suffix}.png"
         
-        if image_bytes:
-            with open(out_path, "wb") as f:
-                f.write(image_bytes)
-            size_kb = out_path.stat().st_size // 1024
-            print(f"    [OpenRouter AI] OK — {size_kb}KB ({out_path.name})")
-            return str(out_path)
-    except Exception as e:
-        print(f"    [OpenRouter AI] FAILED: {e}")
+        try:
+            print(f"    [OpenRouter AI] Generating variant {i} for segment {segment_id}...")
+            image_bytes = client.generate_image(
+                prompt=p,
+                aspect_ratio=aspect_ratio,
+                image_size="2K",
+                model=model,
+                reference_bytes=ref_bytes
+            )
+            
+            if image_bytes:
+                with open(out_path, "wb") as f:
+                    f.write(image_bytes)
+                paths.append(str(out_path))
+                size_kb = out_path.stat().st_size // 1024
+                print(f"    [OpenRouter AI] OK — {size_kb}KB ({out_path.name})")
+        except Exception as e:
+            print(f"    [OpenRouter AI] Variant {i} FAILED: {e}")
 
-    return None
+    if not paths:
+        return None
+        
+    return {
+        "paths": paths, 
+        "reference_used": 1 if ref_bytes else 0,
+        "variant_count": len(paths)
+    }
 
 
 def source_asset_for_segment(segment: dict) -> dict:
@@ -200,14 +239,21 @@ def source_asset_for_segment(segment: dict) -> dict:
         print(f"  SEG {segment.get('segment_index')} | game={game_title or '(none)'} | mechanic={mechanic or '(none)'}")
         print(f"  Pollinations Prompt: {poll_prompt}")
 
-        ai = generate_ai_image(poll_prompt, seg_id)
-        if not ai:
-            print(f"  [FALLBACK] Pollinations failed both attempts — using dark-blue frame")
-            ai = _make_fallback_frame(seg_id)
+        res = generate_ai_image(poll_prompt, seg_id, game_title)
+        if not res:
+            print(f"  [FALLBACK] AI generation failed — using dark-blue frame")
+            fallback_path = _make_fallback_frame(seg_id)
+            if fallback_path:
+                return {"path": fallback_path, "source": "ai_generated", "paths": [fallback_path]}
+            return {"path": None, "source": None}
 
-        if ai:
-            return {"path": ai, "source": "ai_generated"}
-        return {"path": None, "source": None}
+        return {
+            "path": res["paths"][0], 
+            "source": "ai_generated", 
+            "paths": res["paths"],
+            "reference_used": res["reference_used"],
+            "variant_count": res["variant_count"]
+        }
 
     # ── FULL MODE (Skip if YouTube disabled) ─────────────────────────────────
     if not YOUTUBE_CLIP_ENABLED:
@@ -237,8 +283,14 @@ def source_asset_for_segment(segment: dict) -> dict:
 
     # 3. AI Image / universal fallback
     poll_prompt = _build_pollinations_prompt(segment) if not prompt else prompt
-    ai = generate_ai_image(poll_prompt, seg_id)
-    if ai:
-        return {"path": ai, "source": "ai_image"}
+    res = generate_ai_image(poll_prompt, seg_id, segment.get("game_title"))
+    if res:
+        return {
+            "path": res["paths"][0], 
+            "source": "ai_image",
+            "paths": res["paths"],
+            "reference_used": res["reference_used"],
+            "variant_count": res["variant_count"]
+        }
 
     return {"path": None, "source": None}
