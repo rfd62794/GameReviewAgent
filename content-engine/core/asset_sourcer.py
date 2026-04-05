@@ -176,7 +176,7 @@ def source_asset_for_segment(segment: dict) -> dict:
         print(f"  [MVP] Pollinations prompt → {poll_prompt}")
         ai = generate_pollinations_image(poll_prompt, seg_id)
         if ai:
-            return {"path": ai, "source": "ai_image"}
+            return {"path": ai, "source": "ai_generated"}
         return {"path": None, "source": None}
 
     # ── FULL MODE ────────────────────────────────────────────────────────────
