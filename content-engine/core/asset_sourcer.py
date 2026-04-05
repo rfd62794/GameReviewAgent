@@ -35,10 +35,10 @@ YOUTUBE_CLIP_ENABLED = CONFIG.get("youtube_clip_enabled", True)
 
 from core.youtube_sourcer import source_for_segment as yt_source
 from core.llm_client import create_llm_client
-from core.reference_manager import get_reference
+from core.db import get_connection
 from core.prompt_builder import (
     build_pollinations_prompt, 
-    build_variant_prompts
+    build_infographic_prompt
 )
 
 
