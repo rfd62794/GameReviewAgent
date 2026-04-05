@@ -9,10 +9,11 @@ import sys
 import subprocess
 from pathlib import Path
 import shutil
+from core.db import get_connection
+from core.inventory_manager import increment_usage
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from core.db import get_connection
 from core.assembler import preprocess_segment, assemble_video
 
 SCRIPT_ID = 1
@@ -97,6 +98,13 @@ def main():
     if (output_dir / f"video_{SCRIPT_ID}.srt").exists():
         print(f"      ✓ Subtitles: video_{SCRIPT_ID}.srt")
         
+    # --- INVENTORY USAGE UPDATE ---
+    print("\n[4/4] Updating inventory usage stats...")
+    for seg in proc_segments:
+        if seg.get("selected_asset"):
+            increment_usage(seg["selected_asset"])
+    print("      ✓ Usage stats updated")
+
     print("\n" + "=" * 70)
     print("ASSEMBLY COMPLETE")
     print(f"Output: {output_video}")
