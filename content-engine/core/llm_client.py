@@ -149,7 +149,7 @@ class OpenRouterLLMAdapter:
         messages.append({"role": "user", "content": prompt})
 
         return self.call_with_retries(
-            model=model,
+            model=self.model,
             messages=messages,
             tools=tools,
             temperature=temperature,
@@ -323,6 +323,8 @@ class OpenRouterLLMAdapter:
             payload["modalities"] = kwargs.pop("modalities")
         if "image_config" in kwargs:
             payload["image_config"] = kwargs.pop("image_config")
+
+        if tools:
             payload["tools"] = [
                 {
                     "type": "function",
@@ -336,7 +338,7 @@ class OpenRouterLLMAdapter:
             ]
 
         # Add any extra kwargs
-        for k, v in kwargs.items():
+        for k, v in list(kwargs.items()):
             if k not in payload:
                 payload[k] = v
 
