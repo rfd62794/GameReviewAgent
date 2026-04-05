@@ -3,60 +3,29 @@ import subprocess
 from pathlib import Path
 
 
-def _extract_key_phrase(segment_text: str, max_words: int = 8) -> str:
-    """Extract the first sentence truncated to max_words for the text overlay."""
-    if not segment_text:
-        return ""
-    # Take first sentence
-    sentence_match = re.split(r'(?<=[.!?])\s+', segment_text.strip())
-    first = sentence_match[0].strip() if sentence_match else segment_text.strip()
-    # Drop trailing punctuation
-    first = first.rstrip(".!?,;:")
-    words = first.split()
-    if len(words) > max_words:
-        first = " ".join(words[:max_words])
-    return first
+# Pure internal functions moved to core/prompt_builder.py
 
 
-def _escape_drawtext(text: str) -> str:
-    """Escape characters for FFmpeg drawtext filter."""
-    # Escape backslash, colon, single-quote, and special chars
-    text = text.replace("\\", "\\\\")
-    text = text.replace("'", "\\'")
-    text = text.replace(":", "\\:")
-    return text
-
-
-def preprocess_segment(segment: dict, temp_dir: Path) -> Path | None:
+def preprocess_segment(segment: dict, temp_dir: Path, drawtext_filter: str) -> Path | None:
     """
     Process an asset into a standardized 1920x1080 30fps MP4 segment.
     Applies Ken Burns effect for images.
-    Adds drawtext overlay (key phrase, bottom-third, white text on semi-transparent bar).
+    Uses the provided drawtext_filter for text overlays.
     """
     asset_path = Path(segment["selected_asset"])
     duration = segment["estimated_duration_s"]
     vtype = segment["visual_type"]
     idx = segment["segment_index"]
-    segment_text = segment.get("segment_text", "")
 
     out_file = temp_dir / f"seg_{idx}.mp4"
 
-    # --- Key phrase extraction ---
-    key_phrase = _extract_key_phrase(segment_text)
-    escaped_phrase = _escape_drawtext(key_phrase)
-
-    # drawtext filter: white text, bottom-third, semi-transparent black bar behind it
-    # Bar: filled rectangle at y=810 (bottom third of 1080), full width
-    # Text: fontsize 52, centered, at y=820
-    drawtext_filter = (
-        f"drawbox=x=0:y=810:w=iw:h=140:color=black@0.55:t=fill,"
-        f"drawtext=text='{escaped_phrase}'"
-        f":fontsize=52:fontcolor=white:x=(w-text_w)/2:y=840"
-        f":shadowcolor=black@0.6:shadowx=2:shadowy=2"
-    )
-
-    print(f"  [DRAWTEXT seg {idx}] \"{key_phrase}\"")
-    print(f"    filter: {drawtext_filter[:120]}{'...' if len(drawtext_filter) > 120 else ''}")
+    # NOTE: drawtext_filter is now received from stage_p7_assemble.py
+    # which reads it from the database (built by stage_p4b_source.py).
+    
+    if drawtext_filter:
+        print(f"  [ASSEMBLER seg {idx}] Applying drawtext overlay...")
+    else:
+        print(f"  [ASSEMBLER seg {idx}] No drawtext overlay.")
 
     # 1920x1080 format string
     filt_prefix = "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080"
