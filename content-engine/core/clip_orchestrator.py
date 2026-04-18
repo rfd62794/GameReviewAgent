@@ -105,19 +105,12 @@ class PyPongAIClipOrchestrator:
         logger.info(f"Starting match recording with IPC: {label}")
         
         try:
-            # 1. Launch game as subprocess (capture stdout + stderr merged)
-            script_path = str(self.game_path / "main.py")
-            proc = subprocess.Popen(
-                ["python", "-u", script_path],  # -u for unbuffered output
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                cwd=str(self.game_path),
-                bufsize=1 # Line buffered
-            )
+            # 1. Launch game via controller (handles env, stdin pipe, and stdout)
+            if not self.controller.launch_game(self.game_path, self.startup_wait):
+                logger.error("Failed to launch game via controller")
+                return None
             
-            # Sync process with controller for cleanup
-            self.controller.process = proc
+            proc = self.controller.process
             
             # Setup IPC event listener
             match_event = None
@@ -154,18 +147,16 @@ class PyPongAIClipOrchestrator:
             listener_thread.start()
             
             # 2. Navigate and start recording
-            time.sleep(self.startup_wait)
-            self.controller.focus_game()
+            # Controller launch_game already waits for self.startup_wait
             
             # Press P with retries
             for attempt in range(3):
                 if self.controller.press_key("p"):
                     break
                 logger.warning(f"Failed to press P (Attempt {attempt+1}/3), retrying...")
-                self.controller.focus_game()
                 time.sleep(1.0)
             
-            time.sleep(1.5)
+            time.sleep(1.0)
             
             clip_path = self.recorder.start_recording(label)
             

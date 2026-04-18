@@ -54,16 +54,17 @@ class PyPongAIController:
             env = os.environ.copy()
             env["PYPONGAI_AUTOMATION"] = "true"
             
-            # Launch with stdin pipe + stdout capture
+            # Launch with stdin pipe + stdout capture (redirect stderr to stdout for safe draining)
             self.process = subprocess.Popen(
                 [sys.executable, script_path],
                 cwd=str(game_path),
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,  # Line buffering
-                env=env
+                env=env,
+                shell=False # Initially False, but ensure buffers are handled
             )
             
             self.stdin = self.process.stdin
