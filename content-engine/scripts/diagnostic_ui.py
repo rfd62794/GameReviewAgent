@@ -35,16 +35,16 @@ def find_game_window():
     
     hwnd = win32gui.FindWindow(None, "PyPongAI")
     if hwnd:
-        print(f"✓ Found window (hwnd={hwnd})")
+        print("[V] Found window (hwnd={hwnd})")
         return hwnd
     
     # Try alternative title
     hwnd = win32gui.FindWindow(None, "PyPongAI: Evolutionary Pong AI")
     if hwnd:
-        print(f"✓ Found window with full title (hwnd={hwnd})")
+        print(f"[V] Found window with full title (hwnd={hwnd})")
         return hwnd
     
-    print("❌ Window not found. Available windows:")
+    print("[X] Window not found. Available windows:")
     
     def enum_windows(hwnd, _):
         title = win32gui.GetWindowText(hwnd)
@@ -105,17 +105,17 @@ def focus_window(hwnd):
         win32gui.SetFocus(hwnd)
         time.sleep(0.2)
         
-        print("✓ Window focused and brought to foreground")
+        print("[V] Window focused and brought to foreground")
         return True
     except Exception as e:
-        print(f"❌ Failed to focus window: {e}")
+        print(f"[X] Failed to focus window: {e}")
         return False
 
 
 def test_keyboard_input():
     """Test if keyboard input works when focused."""
     if not PYAUTOGUI_AVAILABLE:
-        print("⚠ PyAutogUI not available. Skipping keyboard test.")
+        print("[!] PyAutogUI not available. Skipping keyboard test.")
         return False
     
     print("\nTesting keyboard input...")
@@ -126,7 +126,7 @@ def test_keyboard_input():
     pyautogui.press('p')
     time.sleep(0.5)
     
-    print("  ✓ Key press sent")
+    print("  [V] Key press sent")
     return True
 
 
@@ -142,9 +142,9 @@ def check_dpi_scaling():
         print(f"  DPI: {dpi} ({scaling:.0f}% scaling)")
         
         if scaling != 100:
-            print(f"  ⚠ DPI scaling is at {scaling:.0f}%")
+            print(f"  [!] DPI scaling is at {scaling:.0f}%")
             print(f"    PyAutogUI coordinates may be offset by {scaling/100:.2f}x")
-            print(f"    Check: Settings → Display → Scale and layout")
+            print(f"    Check: Settings -> Display -> Scale and layout")
             return False
         
         return True
