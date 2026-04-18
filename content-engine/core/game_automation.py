@@ -102,9 +102,12 @@ class PyPongAIController:
             return False
         
         try:
-            pyautogui.press(key)
-            logger.debug(f"Pressed key: {key}")
-            time.sleep(0.3)  # Brief delay for UI to respond
+            # Using keyDown/keyUp with a small duration is more reliable for games
+            pyautogui.keyDown(key)
+            time.sleep(0.1)
+            pyautogui.keyUp(key)
+            logger.debug(f"Pressed key (robustly): {key}")
+            time.sleep(0.5)  # Increased delay for Pygame state transition
             return True
         except Exception as e:
             logger.error(f"Failed to press key {key}: {e}")
