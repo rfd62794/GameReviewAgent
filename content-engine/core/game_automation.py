@@ -222,11 +222,12 @@ class PyPongAIController:
             return self._press_key_pyautogui(key)
 
     def _send_input_key(self, scancode: int, down: bool):
-        """Low-level SendInput implementation for hardware scancodes."""
+        """Low-level SendInput implementation for hardware scancodes (64-bit compatible)."""
         # Constants
         KEYEVENTF_SCANCODE = 0x0008
         KEYEVENTF_KEYUP = 0x0002
         
+        # Structure definitions for 64-bit alignment
         class KBDINPUT(ctypes.Structure):
             _fields_ = [("wVk", ctypes.c_ushort),
                         ("wScan", ctypes.c_ushort),
@@ -239,6 +240,7 @@ class PyPongAIController:
 
         class INPUT(ctypes.Structure):
             _fields_ = [("type", ctypes.c_ulong),
+                        ("padding", ctypes.c_ulong), # 4-byte padding for 8-byte alignment of union on 64-bit
                         ("iu", INPUT_UNION)]
 
         flags = KEYEVENTF_SCANCODE
@@ -247,9 +249,12 @@ class PyPongAIController:
             
         kb = KBDINPUT(0, scancode, flags, 0, None)
         iu = INPUT_UNION(ki=kb)
-        inp = INPUT(1, iu) # 1 = INPUT_KEYBOARD
+        # Note: on 64-bit, the 'padding' is between 'type' and 'iu'
+        inp = INPUT(1, 0, iu) # 1 = INPUT_KEYBOARD
         
-        ctypes.windll.user32.SendInput(1, ctypes.pointer(inp), ctypes.sizeof(inp))
+        res = ctypes.windll.user32.SendInput(1, ctypes.pointer(inp), ctypes.sizeof(inp))
+        if res == 0:
+            logger.error(f"SendInput failed with result: {res} (GetLastError: {ctypes.windll.kernel32.GetLastError()})")
 
     def _press_key_pyautogui(self, key: str) -> bool:
         """Fallback keyboard press logic."""
