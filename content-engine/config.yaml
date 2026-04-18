@@ -25,7 +25,7 @@ ytdlp_extra_flags:
 
 pypongai_capture:
   enabled: true
-  game_path: ../PyPongAI
+  game_path: ../../PyPongAI
   output_dir: assets/clips
   
   # Screen capture
