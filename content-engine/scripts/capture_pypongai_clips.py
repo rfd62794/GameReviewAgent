@@ -23,10 +23,15 @@ def main():
     parser.add_argument("--generations", type=int, default=50, help="Max generations for progression mode")
     parser.add_argument("--sample-every", type=int, default=10, help="Sampling interval for progression mode")
     parser.add_argument("--no-ipc", action="store_true", help="Disable IPC-based recording")
+    parser.add_argument("--debug", action="store_true", help="Show verbose logs (including game output)")
     
     parser.add_argument("--game-path", type=str, help="Path to PyPongAI repository")
     
     args = parser.parse_args()
+    
+    if args.debug:
+        logging.getLogger().setLevel(logging.DEBUG)
+        logger.info("Debug logging enabled.")
     
     # Load config
     config_file = Path("config.yaml")

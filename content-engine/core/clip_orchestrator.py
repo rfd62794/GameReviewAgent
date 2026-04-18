@@ -15,8 +15,9 @@ class PyPongAIClipOrchestrator:
 
     def __init__(self, config: dict):
         self.config = config
-        self.game_path = Path(config.get("game_path", "."))
-        self.output_dir = Path(config.get("output_dir", "assets/clips"))
+        # Ensure game_path is absolute to avoid issues with subprocess cwd
+        self.game_path = Path(config.get("game_path", ".")).resolve()
+        self.output_dir = Path(config.get("output_dir", "assets/clips")).resolve()
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
         self.match_duration_seconds = config.get("match_duration_target", 30)
@@ -31,6 +32,7 @@ class PyPongAIClipOrchestrator:
             fps=ffmpeg_opts.get("fps", 30),
             method=ffmpeg_opts.get("method", "gdigrab")
         )
+        # Use the same resolved game_path for the controller
         self.controller = PyPongAIController(ui_coordinates=self.ui_coords)
 
     def record_match(self, label: str, model_name: str = "unknown") -> Optional[Dict[str, Any]]:
@@ -98,14 +100,15 @@ class PyPongAIClipOrchestrator:
         logger.info(f"Starting match recording with IPC: {label}")
         
         try:
-            # 1. Launch game as subprocess (capture stdout)
+            # 1. Launch game as subprocess (capture stdout + stderr merged)
             script_path = str(self.game_path / "main.py")
             proc = subprocess.Popen(
-                ["python", script_path],
+                ["python", "-u", script_path],  # -u for unbuffered output
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 text=True,
                 cwd=str(self.game_path),
+                bufsize=1 # Line buffered
             )
             
             # Sync process with controller for cleanup
@@ -120,8 +123,13 @@ class PyPongAIClipOrchestrator:
                 nonlocal match_event
                 try:
                     for line in proc.stdout:
+                        line = line.strip()
+                        if not line: continue
+                        
+                        logger.debug(f"Game Output: {line}")
+                        
                         # Only process lines that look like JSON events
-                        if line.strip().startswith('{"event"'):
+                        if line.startswith('{"event"'):
                             try:
                                 data = json.loads(line)
                                 event = data.get("event")
