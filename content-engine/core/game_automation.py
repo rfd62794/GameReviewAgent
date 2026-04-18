@@ -74,25 +74,31 @@ class PyPongAIController:
             target_pid = self.process.pid if self.process else None
             hwnd = None
             
-            # 1. Targeted search by PID (Preferred to avoid orphaned windows)
+            # 1. Targeted search by PID AND Title (Crucial to avoid background console)
             if target_pid:
-                def find_by_pid(h, result):
+                def find_by_pid_and_title(h, result):
                     _, pid = win32process.GetWindowThreadProcessId(h)
+                    title = win32gui.GetWindowText(h)
+                    # Game window matches title while console window usually matches python.exe/path
                     if pid == target_pid and win32gui.IsWindowVisible(h):
-                        result.append(h)
+                        if "PyPongAI" in title:
+                            result.insert(0, h) # Priority match
+                        else:
+                            result.append(h)
                 hwnds = []
-                win32gui.EnumWindows(find_by_pid, hwnds)
+                win32gui.EnumWindows(find_by_pid_and_title, hwnds)
                 if hwnds:
                     hwnd = hwnds[0]
+                    logger.debug(f"Found window with PID and Title: '{win32gui.GetWindowText(hwnd)}'")
             
-            # 2. Fallback to title search if PID matching failed
+            # 2. Fallback to title search if PID matching failed completely
             if not hwnd:
                 target_title = "PyPongAI: Evolutionary Pong AI"
                 hwnd = win32gui.FindWindow(None, target_title)
             
             if hwnd:
                 self.window_handle = hwnd
-                logger.debug(f"Targeting window hwnd: {hwnd} (PID: {target_pid})")
+                logger.debug(f"Targeting window hwnd: {hwnd} (PID: {target_pid}, Title: '{win32gui.GetWindowText(hwnd)}')")
                 
                 # 3. Use AttachThreadInput to bypass 'Access Denied' on SetFocus
                 # This binds our script's input thread to the game's input thread
