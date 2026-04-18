@@ -54,18 +54,33 @@ class PyPongAIController:
             return False
             
         try:
-            # Look for the window by title
-            windows = gw.getWindowsWithTitle("PyPongAI")
-            if windows:
-                game_win = windows[0]
+            # Match strictly against the configured window title if possible
+            # PyPongAI: Evolutionary Pong AI
+            target_title = "PyPongAI: Evolutionary Pong AI"
+            all_windows = gw.getAllWindows()
+            matches = [w for w in all_windows if target_title in w.title or "PyPongAI" in w.title]
+            
+            if matches:
+                # Sort by title length to prefer exact matches? Or just take the first.
+                game_win = matches[0]
+                logger.info(f"Found window: '{game_win.title}'. Activating...")
+                
                 game_win.activate()
-                # Optionally click in the middle to ensure focus
-                pyautogui.click(game_win.left + game_win.width // 2, 
-                                game_win.top + game_win.height // 2)
-                logger.info("Focused PyPongAI window.")
+                time.sleep(1.0) # Wait for OS to actually switch focus
+                
+                # Double focus: click in the middle
+                center_x = game_win.left + game_win.width // 2
+                center_y = game_win.top + game_win.height // 2
+                pyautogui.click(center_x, center_y)
+                time.sleep(1.0) # Wait for click to register focus
+                
+                logger.info(f"Focused PyPongAI window at ({center_x}, {center_y}).")
                 return True
             else:
-                logger.warning("PyPongAI window not found to focus.")
+                logger.warning(f"PyPongAI window not found (Target: '{target_title}').")
+                # Log all titles for debugging
+                titles = [w.title for w in all_windows if w.title.strip()]
+                logger.debug(f"Available window titles: {titles[:10]}...")
                 return False
         except Exception as e:
             logger.error(f"Error focusing game window: {e}")
