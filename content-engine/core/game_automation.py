@@ -174,28 +174,91 @@ class PyPongAIController:
 
     def press_key(self, key: str) -> bool:
         """
-        Press a keyboard key with focus verification.
+        Press a keyboard key using low-level Hardware ScanCodes (DirectInput style).
         """
-        if not PYAUTOGUI_AVAILABLE:
-            logger.warning("PyAutogUI not available. Cannot press key.")
-            return False
+        if not WIN32_AVAILABLE:
+            # Fallback to pyautogui if win32 is missing
+            return self._press_key_pyautogui(key)
         
         # Verify focus before pressing
-        if WIN32_AVAILABLE and self.window_handle:
+        if self.window_handle:
             if win32gui.GetForegroundWindow() != self.window_handle:
                 logger.debug("Lost focus, re-focusing...")
                 self.focus_game()
 
         try:
-            # Using keyDown/keyUp with a small duration is more reliable for games
+            # Hardware ScanCodes for common keys
+            # P = 0x19, S = 0x1F, ESC = 0x01
+            scancodes = {
+                "p": 0x19,
+                "s": 0x1F,
+                "escape": 0x01,
+                "q": 0x10,
+                "t": 0x14,
+                "l": 0x26,
+                "m": 0x32,
+                "a": 0x1E,
+                "c": 0x2E
+            }
+            
+            code = scancodes.get(key.lower())
+            if not code:
+                logger.warning(f"No ScanCode found for '{key}', falling back to pyautogui.")
+                return self._press_key_pyautogui(key)
+
+            logger.debug(f"Pressing key via SendInput (ScanCode: {hex(code)})")
+            
+            # Key Down
+            self._send_input_key(code, down=True)
+            time.sleep(0.1)
+            # Key Up
+            self._send_input_key(code, down=False)
+            
+            time.sleep(1.0) # Generous delay for state transition
+            return True
+        except Exception as e:
+            logger.error(f"Failed to press key {key} via SendInput: {e}")
+            return self._press_key_pyautogui(key)
+
+    def _send_input_key(self, scancode: int, down: bool):
+        """Low-level SendInput implementation for hardware scancodes."""
+        # Constants
+        KEYEVENTF_SCANCODE = 0x0008
+        KEYEVENTF_KEYUP = 0x0002
+        
+        class KBDINPUT(ctypes.Structure):
+            _fields_ = [("wVk", ctypes.c_ushort),
+                        ("wScan", ctypes.c_ushort),
+                        ("dwFlags", ctypes.c_ulong),
+                        ("time", ctypes.c_ulong),
+                        ("dwExtraInfo", ctypes.p_void_p)]
+
+        class INPUT_UNION(ctypes.Union):
+            _fields_ = [("ki", KBDINPUT)]
+
+        class INPUT(ctypes.Structure):
+            _fields_ = [("type", ctypes.c_ulong),
+                        ("iu", INPUT_UNION)]
+
+        flags = KEYEVENTF_SCANCODE
+        if not down:
+            flags |= KEYEVENTF_KEYUP
+            
+        kb = KBDINPUT(0, scancode, flags, 0, None)
+        iu = INPUT_UNION(ki=kb)
+        inp = INPUT(1, iu) # 1 = INPUT_KEYBOARD
+        
+        ctypes.windll.user32.SendInput(1, ctypes.pointer(inp), ctypes.sizeof(inp))
+
+    def _press_key_pyautogui(self, key: str) -> bool:
+        """Fallback keyboard press logic."""
+        if not PYAUTOGUI_AVAILABLE: return False
+        try:
             pyautogui.keyDown(key)
             time.sleep(0.1)
             pyautogui.keyUp(key)
-            logger.debug(f"Pressed key (robustly): {key}")
-            time.sleep(0.8)  # Generous delay for Pygame state transition
             return True
-        except Exception as e:
-            logger.error(f"Failed to press key {key}: {e}")
+        except Exception:
             return False
         
     def wait_for_match_completion(self, timeout_s: int) -> bool:
