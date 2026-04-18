@@ -6,6 +6,7 @@ from pathlib import Path
 # it doesn't crash the entire ContentEngine if missing on a machine that doesn't capture videos.
 try:
     import pyautogui
+    import pygetwindow as gw
     PYAUTOGUI_AVAILABLE = True
 except ImportError:
     PYAUTOGUI_AVAILABLE = False
@@ -41,9 +42,33 @@ class PyPongAIController:
                 cwd=str(game_path)
             )
             time.sleep(wait_seconds)
+            self.focus_game()
             return True
         except Exception as e:
             print(f"Failed to launch game: {e}")
+            return False
+
+    def focus_game(self) -> bool:
+        """Attempt to find and focus the PyPongAI window."""
+        if not PYAUTOGUI_AVAILABLE:
+            return False
+            
+        try:
+            # Look for the window by title
+            windows = gw.getWindowsWithTitle("PyPongAI")
+            if windows:
+                game_win = windows[0]
+                game_win.activate()
+                # Optionally click in the middle to ensure focus
+                pyautogui.click(game_win.left + game_win.width // 2, 
+                                game_win.top + game_win.height // 2)
+                logger.info("Focused PyPongAI window.")
+                return True
+            else:
+                logger.warning("PyPongAI window not found to focus.")
+                return False
+        except Exception as e:
+            logger.error(f"Error focusing game window: {e}")
             return False
 
     def click_menu_button(self, button_name: str) -> bool:
