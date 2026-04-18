@@ -137,9 +137,10 @@ class PyPongAIController:
             current_thread = win32api.GetCurrentThreadId()
             
             if target_thread != current_thread:
-                win32api.AttachThreadInput(current_thread, target_thread, attach)
+                # Use ctypes for more reliable access to user32
+                ctypes.windll.user32.AttachThreadInput(current_thread, target_thread, attach)
         except Exception as e:
-            logger.debug(f"AttachThreadInput failed (expected if non-admin): {e}")
+            logger.debug(f"AttachThreadInput failed: {e}")
 
     def _focus_game_fallback(self) -> bool:
         """Legacy pygetwindow fallback focus logic."""
@@ -231,7 +232,7 @@ class PyPongAIController:
                         ("wScan", ctypes.c_ushort),
                         ("dwFlags", ctypes.c_ulong),
                         ("time", ctypes.c_ulong),
-                        ("dwExtraInfo", ctypes.p_void_p)]
+                        ("dwExtraInfo", ctypes.c_void_p)]
 
         class INPUT_UNION(ctypes.Union):
             _fields_ = [("ki", KBDINPUT)]
