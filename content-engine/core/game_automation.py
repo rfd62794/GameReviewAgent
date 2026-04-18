@@ -10,6 +10,7 @@ import subprocess
 import logging
 import time
 import os
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -55,7 +56,7 @@ class PyPongAIController:
             
             # Launch with stdin pipe + stdout capture
             self.process = subprocess.Popen(
-                ["python", script_path],
+                [sys.executable, script_path],
                 cwd=str(game_path),
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
