@@ -21,7 +21,7 @@ class PyPongAIClipOrchestrator:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
         self.match_duration_seconds = config.get("match_duration_target", 30)
-        self.startup_wait = config.get("startup_wait", 3)
+        self.startup_wait = config.get("startup_wait", 5) # Default increased to 5s
         self.ui_coords = config.get("ui_coordinates", {})
         
         ffmpeg_opts = config.get("ffmpeg", {})
@@ -47,13 +47,18 @@ class PyPongAIClipOrchestrator:
             
             time.sleep(1.0)
             
-            # 2. Navigate to Play mode via keyboard (P key)
-            if not self.controller.press_key("p"):
-                logger.error("Failed to press P key")
+            # 2. Navigate to Play mode via keyboard (P key) with retries
+            for attempt in range(3):
+                if self.controller.press_key("p"):
+                    break
+                logger.warning(f"Failed to press P (Attempt {attempt+1}/3), retrying...")
+                time.sleep(1.0)
+            else:
+                logger.error("Failed to navigate to Play mode after retries")
                 self.controller.close_game()
                 return None
             
-            time.sleep(1.0)
+            time.sleep(1.5)
             
             # 3. Start recording
             clip_path = self.recorder.start_recording(label)
@@ -151,8 +156,16 @@ class PyPongAIClipOrchestrator:
             # 2. Navigate and start recording
             time.sleep(self.startup_wait)
             self.controller.focus_game()
-            self.controller.press_key("p")  # Go to Play
-            time.sleep(1.0)
+            
+            # Press P with retries
+            for attempt in range(3):
+                if self.controller.press_key("p"):
+                    break
+                logger.warning(f"Failed to press P (Attempt {attempt+1}/3), retrying...")
+                self.controller.focus_game()
+                time.sleep(1.0)
+            
+            time.sleep(1.5)
             
             clip_path = self.recorder.start_recording(label)
             
