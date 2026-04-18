@@ -150,6 +150,7 @@ class PyPongAIClipOrchestrator:
             
             # 2. Navigate and start recording
             time.sleep(self.startup_wait)
+            self.controller.focus_game()
             self.controller.press_key("p")  # Go to Play
             time.sleep(1.0)
             
