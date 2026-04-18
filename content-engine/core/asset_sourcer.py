@@ -42,6 +42,7 @@ from core.prompt_builder import (
     build_pollinations_prompt, 
     build_infographic_prompt
 )
+from core.clip_orchestrator import get_pypongai_clips
 
 
 def download_file(url: str, output_path: Path) -> Path:
@@ -57,6 +58,15 @@ def download_file(url: str, output_path: Path) -> Path:
 def check_local_gameplay(query: str) -> str | None:
     """Check if we have a locally captured gameplay clip matching the query."""
     q_norm = query.lower().strip()
+    
+    # Priority 1: Pre-recorded PyPongAI clips
+    pypongai_clips = get_pypongai_clips(ASSETS_DIR / "clips")
+    for clip in pypongai_clips:
+        model_name = clip.get("metadata", {}).get("model_name", "").lower()
+        if q_norm in model_name or model_name in q_norm:
+            return clip["path"]
+            
+    # Priority 2: Other local clips (existing logic)
     for file in LOCAL_GAMEPLAY_DIR.glob("*.mp4"):
         if q_norm in file.name.lower():
             return str(file)

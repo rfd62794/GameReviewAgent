@@ -22,3 +22,31 @@ llm:
 ytdlp_extra_flags:
 - --remote-components
 - ejs:github
+
+pypongai_capture:
+  enabled: true
+  game_path: ../PyPongAI
+  output_dir: assets/clips
+  
+  # Screen capture
+  ffmpeg:
+    method: gdigrab
+    width: 800
+    height: 600
+    fps: 30
+    bitrate: 5000k
+  
+  # Game automation
+  ui_coordinates:
+    menu_title: [400, 100]
+    play_button: [200, 300]
+    train_button: [600, 300]
+    start_button: [400, 500]
+    back_button: [50, 50]
+  
+  # Recording behavior
+  match_duration_target: 30
+  startup_wait: 3
+  match_complete_timeout: 120
+  auto_index_clips: true
+  clip_metadata_format: json
