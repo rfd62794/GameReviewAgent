@@ -153,14 +153,24 @@ def check_dpi_scaling():
         return None
 
 
+def is_admin():
+    """Check if the current script is running with Administrator privileges."""
+    try:
+        import ctypes
+        return ctypes.windll.shell32.IsUserAnAdmin() != 0
+    except Exception:
+        return False
+
+
 def main():
     """Run diagnostics."""
     print("=" * 60)
     print("PyPongAI Input Focus Diagnostics")
     print("=" * 60)
     
-    print("\n1. Checking DPI Scaling")
+    print("\n1. System Status")
     print("-" * 40)
+    print(f"  Admin Privileges: {'[V] YES' if is_admin() else '[ ] NO (Limited User)'}")
     check_dpi_scaling()
     
     print("\n2. Launching PyPongAI")
