@@ -14,6 +14,7 @@ try:
     import win32gui
     import win32con
     import win32process
+    import win32api
     import ctypes
     WIN32_AVAILABLE = True
     
@@ -64,38 +65,51 @@ class PyPongAIController:
             return False
 
     def focus_game(self) -> bool:
-        """Attempt to find and focus the PyPongAI window using Windows API."""
+        """Attempt to find and focus the PyPongAI window using PID targeting and Thread Attachment."""
         if not WIN32_AVAILABLE:
             logger.warning("pywin32 not available. Falling back to basic focus.")
             return self._focus_game_fallback()
             
         try:
-            target_title = "PyPongAI: Evolutionary Pong AI"
-            hwnd = win32gui.FindWindow(None, target_title)
+            target_pid = self.process.pid if self.process else None
+            hwnd = None
             
-            # Fallback to partial match if exact title isn't found
-            if not hwnd:
-                def enum_handler(h, l):
-                    if "PyPongAI" in win32gui.GetWindowText(h):
-                        l.append(h)
+            # 1. Targeted search by PID (Preferred to avoid orphaned windows)
+            if target_pid:
+                def find_by_pid(h, result):
+                    _, pid = win32process.GetWindowThreadProcessId(h)
+                    if pid == target_pid and win32gui.IsWindowVisible(h):
+                        result.append(h)
                 hwnds = []
-                win32gui.EnumWindows(enum_handler, hwnds)
+                win32gui.EnumWindows(find_by_pid, hwnds)
                 if hwnds:
                     hwnd = hwnds[0]
             
+            # 2. Fallback to title search if PID matching failed
+            if not hwnd:
+                target_title = "PyPongAI: Evolutionary Pong AI"
+                hwnd = win32gui.FindWindow(None, target_title)
+            
             if hwnd:
                 self.window_handle = hwnd
-                logger.debug(f"Targeting window hwnd: {hwnd}")
+                logger.debug(f"Targeting window hwnd: {hwnd} (PID: {target_pid})")
                 
-                # Ensure window is shown
-                win32gui.ShowWindow(hwnd, win32con.SW_SHOW)
+                # 3. Use AttachThreadInput to bypass 'Access Denied' on SetFocus
+                # This binds our script's input thread to the game's input thread
+                self._attach_input(True)
+                
+                # 4. Minimize and Restore (The "Focus Kick")
+                # This forces Windows to re-evaluate the window's foreground priority
+                win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
                 time.sleep(0.1)
+                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+                time.sleep(0.2)
                 
-                # Force to foreground
+                # 5. Bring to foreground
                 win32gui.SetForegroundWindow(hwnd)
-                time.sleep(0.5) # Wait for OS switch
+                time.sleep(0.5) 
                 
-                # Double focus with a physical click
+                # 6. Double focus with a physical click
                 rect = win32gui.GetWindowRect(hwnd)
                 center_x = rect[0] + (rect[2] - rect[0]) // 2
                 center_y = rect[1] + (rect[3] - rect[1]) // 2
@@ -104,14 +118,28 @@ class PyPongAIController:
                     pyautogui.click(center_x, center_y)
                     time.sleep(0.5)
                 
-                logger.info(f"Focused PyPongAI window at ({center_x}, {center_y})")
+                logger.info(f"Focused PyPongAI window (PID: {target_pid}) at ({center_x}, {center_y})")
                 return True
             else:
-                logger.warning(f"PyPongAI window not found (Target: '{target_title}').")
+                logger.warning("PyPongAI window not found.")
                 return False
         except Exception as e:
-            logger.error(f"Error focusing game window with win32api: {e}")
+            logger.error(f"Error focusing game window: {e}")
             return False
+
+    def _attach_input(self, attach: bool):
+        """Bind automation thread input to target window's thread input."""
+        if not WIN32_AVAILABLE or not self.window_handle:
+            return
+            
+        try:
+            target_thread, _ = win32process.GetWindowThreadProcessId(self.window_handle)
+            current_thread = win32api.GetCurrentThreadId()
+            
+            if target_thread != current_thread:
+                win32api.AttachThreadInput(current_thread, target_thread, attach)
+        except Exception as e:
+            logger.debug(f"AttachThreadInput failed (expected if non-admin): {e}")
 
     def _focus_game_fallback(self) -> bool:
         """Legacy pygetwindow fallback focus logic."""
