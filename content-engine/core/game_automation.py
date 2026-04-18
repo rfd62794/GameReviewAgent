@@ -175,98 +175,33 @@ class PyPongAIController:
 
     def press_key(self, key: str) -> bool:
         """
-        Press a keyboard key using low-level Hardware ScanCodes (DirectInput style).
+        Press a keyboard key with robust focus verification.
         """
-        if not WIN32_AVAILABLE:
-            # Fallback to pyautogui if win32 is missing
-            return self._press_key_pyautogui(key)
+        if not PYAUTOGUI_AVAILABLE:
+            logger.warning("PyAutogUI not available. Cannot press key.")
+            return False
         
         # Verify focus before pressing
         if self.window_handle:
             if win32gui.GetForegroundWindow() != self.window_handle:
                 logger.debug("Lost focus, re-focusing...")
                 self.focus_game()
+        
+        # Brief pause to ensure input queue is ready after focus shift
+        time.sleep(0.2)
 
         try:
-            # Hardware ScanCodes for common keys
-            # P = 0x19, S = 0x1F, ESC = 0x01
-            scancodes = {
-                "p": 0x19,
-                "s": 0x1F,
-                "escape": 0x01,
-                "q": 0x10,
-                "t": 0x14,
-                "l": 0x26,
-                "m": 0x32,
-                "a": 0x1E,
-                "c": 0x2E
-            }
-            
-            code = scancodes.get(key.lower())
-            if not code:
-                logger.warning(f"No ScanCode found for '{key}', falling back to pyautogui.")
-                return self._press_key_pyautogui(key)
-
-            logger.debug(f"Pressing key via SendInput (ScanCode: {hex(code)})")
-            
-            # Key Down
-            self._send_input_key(code, down=True)
-            time.sleep(0.1)
-            # Key Up
-            self._send_input_key(code, down=False)
-            
-            time.sleep(1.0) # Generous delay for state transition
-            return True
-        except Exception as e:
-            logger.error(f"Failed to press key {key} via SendInput: {e}")
-            return self._press_key_pyautogui(key)
-
-    def _send_input_key(self, scancode: int, down: bool):
-        """Low-level SendInput implementation for hardware scancodes (64-bit compatible)."""
-        # Constants
-        KEYEVENTF_SCANCODE = 0x0008
-        KEYEVENTF_KEYUP = 0x0002
-        
-        # Structure definitions for 64-bit alignment
-        class KBDINPUT(ctypes.Structure):
-            _fields_ = [("wVk", ctypes.c_ushort),
-                        ("wScan", ctypes.c_ushort),
-                        ("dwFlags", ctypes.c_ulong),
-                        ("time", ctypes.c_ulong),
-                        ("dwExtraInfo", ctypes.c_void_p)]
-
-        class INPUT_UNION(ctypes.Union):
-            _fields_ = [("ki", KBDINPUT)]
-
-        class INPUT(ctypes.Structure):
-            _fields_ = [("type", ctypes.c_ulong),
-                        ("padding", ctypes.c_ulong), # 4-byte padding for 8-byte alignment of union on 64-bit
-                        ("iu", INPUT_UNION)]
-
-        flags = KEYEVENTF_SCANCODE
-        if not down:
-            flags |= KEYEVENTF_KEYUP
-            
-        kb = KBDINPUT(0, scancode, flags, 0, None)
-        iu = INPUT_UNION(ki=kb)
-        # Note: on 64-bit, the 'padding' is between 'type' and 'iu'
-        inp = INPUT(1, 0, iu) # 1 = INPUT_KEYBOARD
-        
-        res = ctypes.windll.user32.SendInput(1, ctypes.pointer(inp), ctypes.sizeof(inp))
-        if res == 0:
-            logger.error(f"SendInput failed with result: {res} (GetLastError: {ctypes.windll.kernel32.GetLastError()})")
-
-    def _press_key_pyautogui(self, key: str) -> bool:
-        """Fallback keyboard press logic."""
-        if not PYAUTOGUI_AVAILABLE: return False
-        try:
+            # Using keyDown/keyUp with a small duration is more reliable for games
             pyautogui.keyDown(key)
             time.sleep(0.1)
             pyautogui.keyUp(key)
+            logger.debug(f"Pressed key (Standard SendInput): {key}")
+            time.sleep(1.0)  # Generous delay for Pygame state transition
             return True
-        except Exception:
+        except Exception as e:
+            logger.error(f"Failed to press key {key}: {e}")
             return False
-        
+
     def wait_for_match_completion(self, timeout_s: int) -> bool:
         """Wait blindly for the match duration (Phase 1-2 fallback)."""
         time.sleep(timeout_s)
