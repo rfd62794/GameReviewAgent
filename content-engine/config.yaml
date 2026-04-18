@@ -50,3 +50,5 @@ pypongai_capture:
   match_complete_timeout: 120
   auto_index_clips: true
   clip_metadata_format: json
+  ipc_enabled: true
+  ipc_timeout_s: 120
