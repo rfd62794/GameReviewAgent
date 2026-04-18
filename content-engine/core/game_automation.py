@@ -1,3 +1,6 @@
+import subprocess
+import time
+from pathlib import Path
 try:
     import pyautogui
     # Note: pygetwindow is kept as a fallback, but we'll prioritize win32gui
