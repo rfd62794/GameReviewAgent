@@ -1,8 +1,14 @@
 import time
 import json
+import threading
+import logging
+import subprocess
 from pathlib import Path
+from typing import Optional, Dict, Any
 from core.screen_recorder import ScreenRecorder
 from core.game_automation import PyPongAIController
+
+logger = logging.getLogger(__name__)
 
 class PyPongAIClipOrchestrator:
     """Orchestrate game automation + clip recording."""
@@ -13,7 +19,7 @@ class PyPongAIClipOrchestrator:
         self.output_dir = Path(config.get("output_dir", "assets/clips"))
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
-        self.match_duration = config.get("match_duration_target", 30)
+        self.match_duration_seconds = config.get("match_duration_target", 30)
         self.startup_wait = config.get("startup_wait", 3)
         self.ui_coords = config.get("ui_coordinates", {})
         
@@ -27,48 +33,158 @@ class PyPongAIClipOrchestrator:
         )
         self.controller = PyPongAIController(ui_coordinates=self.ui_coords)
 
-    def record_match(self, model_name: str, duration_s: int = None) -> dict:
-        """Record an automated match for a given model or setup."""
-        dur = duration_s if duration_s is not None else self.match_duration
-        print(f"Recording match for: {model_name}")
+    def record_match(self, label: str, model_name: str = "unknown") -> Optional[Dict[str, Any]]:
+        """Record a single match using keyboard controls."""
+        logger.info(f"Starting match recording: {label}")
+        
+        try:
+            # 1. Launch game
+            if not self.controller.launch_game(self.game_path, self.startup_wait):
+                logger.error("Failed to launch game")
+                return None
+            
+            time.sleep(1.0)
+            
+            # 2. Navigate to Play mode via keyboard (P key)
+            if not self.controller.press_key("p"):
+                logger.error("Failed to press P key")
+                self.controller.close_game()
+                return None
+            
+            time.sleep(1.0)
+            
+            # 3. Start recording
+            clip_path = self.recorder.start_recording(label)
+            
+            # 4. Start match via keyboard (S key)
+            if not self.controller.press_key("s"):
+                logger.error("Failed to press S key")
+                self.recorder.stop_recording()
+                self.controller.close_game()
+                return None
+            
+            # 5. Wait for match duration (Phase 1 fallback)
+            time.sleep(self.match_duration_seconds)
+            
+            # 6. Return to menu via keyboard (ESC key)
+            self.controller.press_key("escape")
+            time.sleep(0.5)
+            
+            # 7. Stop recording
+            final_path = self.recorder.stop_recording()
+            
+            # 8. Close game
+            self.controller.close_game()
+            
+            # 9. Generate and save metadata
+            metadata = self._generate_metadata(
+                label=label,
+                model_name=model_name,
+                clip_path=final_path,
+                duration_seconds=self.match_duration_seconds,
+            )
+            self._save_metadata(final_path, metadata)
+            
+            logger.info(f"Match recording completed: {final_path}")
+            return metadata
+            
+        except Exception as e:
+            logger.error(f"Error during match recording: {e}")
+            self.controller.close_game()
+            return None
 
-        # 1. Launch Game
-        if not self.controller.launch_game(self.game_path, self.startup_wait):
-            return {"error": "Failed to launch game"}
-
-        # 2. Navigate (assuming Play vs AI flow)
-        self.controller.click_menu_button("play_button")
+    def record_match_with_ipc(self, label: str, model_name: str = "unknown") -> Optional[Dict[str, Any]]:
+        """Record match using IPC event to detect exact completion."""
+        logger.info(f"Starting match recording with IPC: {label}")
         
-        # Note: Model selection via UI would go here if needed.
-        
-        # 3. Start Recording
-        mp4_path = self.recorder.start_recording(model_name)
-        
-        # 4. Start Match
-        self.controller.click_menu_button("start_button")
-        
-        # 5. Wait for duration
-        self.controller.wait_for_match_completion(dur)
-        
-        # 6. Stop Recording
-        self.recorder.stop_recording()
-        
-        # 7. Cleanup
-        self.controller.close_game()
-        
-        # 8. Save Metadata Sidecar
-        meta_path = mp4_path.with_suffix(".json")
-        metadata = {
-            "model_name": model_name,
-            "duration": dur,
-            "path": str(mp4_path),
-            "timestamp": time.time(),
-            "source": "pypongai_recorder"
-        }
-        with open(meta_path, "w") as f:
-            json.dump(metadata, f, indent=2)
-
-        return metadata
+        try:
+            # 1. Launch game as subprocess (capture stdout)
+            script_path = str(self.game_path / "main.py")
+            proc = subprocess.Popen(
+                ["python", script_path],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                cwd=str(self.game_path),
+            )
+            
+            # Sync process with controller for cleanup
+            self.controller.process = proc
+            
+            # Setup IPC event listener
+            match_event = None
+            event_received = threading.Event()
+            
+            def listen_for_events():
+                """Read stdout and parse IPC events."""
+                nonlocal match_event
+                try:
+                    for line in proc.stdout:
+                        # Only process lines that look like JSON events
+                        if line.strip().startswith('{"event"'):
+                            try:
+                                data = json.loads(line)
+                                event = data.get("event")
+                                
+                                if event and event.get("type") == "match_complete":
+                                    logger.info(f"✓ IPC Event: Match complete - {event['data']['winner']} won")
+                                    match_event = event
+                                    event_received.set()
+                                    break
+                            except json.JSONDecodeError:
+                                pass
+                except Exception as e:
+                    logger.error(f"Error listening for IPC events: {e}")
+            
+            # Start listener thread
+            listener_thread = threading.Thread(target=listen_for_events, daemon=True)
+            listener_thread.start()
+            
+            # 2. Navigate and start recording
+            time.sleep(self.startup_wait)
+            self.controller.press_key("p")  # Go to Play
+            time.sleep(1.0)
+            
+            clip_path = self.recorder.start_recording(label)
+            
+            self.controller.press_key("s")  # Start match
+            time.sleep(0.5)
+            
+            # 3. Wait for IPC event (with timeout fallback)
+            if event_received.wait(timeout=self.match_duration_seconds + 15):
+                logger.info("Match completed via IPC event")
+            else:
+                logger.warning("IPC event timeout, match may still be running")
+            
+            # 4. Stop recording
+            final_path = self.recorder.stop_recording()
+            
+            # 5. Return to menu and close
+            self.controller.press_key("escape")
+            time.sleep(0.5)
+            self.controller.close_game()
+            
+            # 6. Generate metadata with IPC data
+            if match_event:
+                metadata = self._generate_metadata(
+                    label=label,
+                    model_name=model_name,
+                    clip_path=final_path,
+                    duration_seconds=match_event["data"]["duration_seconds"],
+                    match_result=match_event["data"],
+                )
+            else:
+                metadata = self._generate_metadata(label, model_name, final_path, self.match_duration_seconds)
+            
+            self._save_metadata(final_path, metadata)
+            
+            logger.info(f"Match recording completed: {final_path}")
+            return metadata
+            
+        except Exception as e:
+            logger.error(f"Error during match recording with IPC: {e}")
+            self.controller.close_game()
+            return None
 
     def record_generation_samples(self, gen_start: int, gen_end: int, sample_every_n: int) -> list:
         """Record game clips at specified generation intervals."""
@@ -85,10 +201,32 @@ class PyPongAIClipOrchestrator:
     def record_gen_0_vs_gen_50(self) -> dict:
         """Record both Gen 0 and Gen 50 for comparison."""
         clips = {}
-        clips["gen_0"] = self.record_match("gen_0_random", duration_s=15)
+        clips["gen_0"] = self.record_match("gen_0_random_sample", model_name="gen_0")
         time.sleep(2)
-        clips["gen_50"] = self.record_match("gen_50_champion", duration_s=15)
+        clips["gen_50"] = self.record_match("gen_50_champion_sample", model_name="gen_50")
         return clips
+
+    def _generate_metadata(self, label: str, model_name: str, clip_path: Path, duration_seconds: float, match_result: dict = None) -> dict:
+        """Standardize metadata generation for clips."""
+        return {
+            "label": label,
+            "model_name": model_name,
+            "duration": duration_seconds,
+            "path": str(clip_path),
+            "timestamp": time.time(),
+            "source": "pypongai_recorder",
+            "match_result": match_result or {}
+        }
+
+    def _save_metadata(self, clip_path: Path, metadata: dict):
+        """Save metadata sidecar file."""
+        meta_path = clip_path.with_suffix(".json")
+        try:
+            with open(meta_path, "w") as f:
+                json.dump(metadata, f, indent=2)
+            logger.debug(f"Metadata saved: {meta_path}")
+        except Exception as e:
+            logger.error(f"Failed to save metadata to {meta_path}: {e}")
 
 def get_pypongai_clips(output_dir: Path) -> list:
     """Helper for asset_sourcer to find recorded PyPongAI clips metadata."""

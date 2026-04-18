@@ -10,6 +10,9 @@ try:
 except ImportError:
     PYAUTOGUI_AVAILABLE = False
 
+import logging
+logger = logging.getLogger(__name__)
+
 class PyPongAIController:
     """Automate PyPongAI via keyboard/mouse."""
     
@@ -58,6 +61,29 @@ class PyPongAIController:
         pyautogui.click(x, y)
         time.sleep(1) # Brief pause after clicking
         return True
+
+    def press_key(self, key: str) -> bool:
+        """
+        Press a keyboard key.
+        
+        Args:
+            key: Key name (e.g., 'p', 'escape', 's')
+            
+        Returns:
+            True if successful
+        """
+        if not PYAUTOGUI_AVAILABLE:
+            logger.warning("PyAutogUI not available. Cannot press key.")
+            return False
+        
+        try:
+            pyautogui.press(key)
+            logger.debug(f"Pressed key: {key}")
+            time.sleep(0.3)  # Brief delay for UI to respond
+            return True
+        except Exception as e:
+            logger.error(f"Failed to press key {key}: {e}")
+            return False
         
     def wait_for_match_completion(self, timeout_s: int) -> bool:
         """Wait blindly for the match duration (Phase 1-2 fallback)."""
