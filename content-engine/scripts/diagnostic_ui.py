@@ -165,14 +165,26 @@ def main():
     
     print("\n2. Launching PyPongAI")
     print("-" * 40)
-    # Correct path for sibling repo
-    game_path = Path(__file__).parent.parent / "PyPongAI"
-    if not game_path.exists():
-        # Try one more level up
-        game_path = Path(__file__).parent.parent.parent / "PyPongAI"
+    # Look for sibling PyPongAI repo
+    # 1. Check relative to script: scripts/../.. (content-engine root)
+    # 2. Check sibling: content-engine/../../PyPongAI
+    script_dir = Path(__file__).parent
+    
+    # Try common locations
+    candidates = [
+        script_dir.parent.parent / "PyPongAI", # c:\Github\PyPongAI (if in content-engine/scripts)
+        script_dir.parent.parent.parent / "PyPongAI", # if one level deeper
+        Path("c:/Github/PyPongAI") # Absolute fallback
+    ]
+    
+    game_path = None
+    for cand in candidates:
+        if cand.exists():
+            game_path = cand
+            break
         
-    if not game_path.exists():
-        print(f"❌ PyPongAI not found. Search path: {game_path}")
+    if not game_path:
+        print(f"❌ PyPongAI not found. Searched: {[str(c) for c in candidates]}")
         return 1
     
     print(f"  Launching from: {game_path}")
